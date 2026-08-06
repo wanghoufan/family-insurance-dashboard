@@ -72,6 +72,11 @@
   .form-full{grid-column:1 / -1;}
   .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;}
   .hint{color:var(--muted);font-size:12px;margin-top:8px;line-height:1.6;}
+  .onboarding{padding:12px 16px;border-radius:10px;background:rgba(78,161,255,0.08);border:1px solid rgba(78,161,255,0.22);color:#93c5fd;margin-bottom:18px;font-size:13.5px;line-height:1.6;}
+  .onboarding strong{color:#bfdbfe;}
+  .required{color:#f87171;margin-left:3px;}
+  .highlight-row{animation:flash 2s ease;}
+  @keyframes flash{0%,100%{background:transparent} 50%{background:rgba(78,161,255,0.16)}}
   footer{color:var(--muted);font-size:12px;text-align:center;padding:24px;border-top:1px solid var(--border);margin-top:30px;}
   @media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr);}.grid2{grid-template-columns:1fr;}.renew{grid-template-columns:1fr;}.form-grid{grid-template-columns:1fr;}}
 </style>
@@ -86,12 +91,15 @@
     <button class="primary" onclick="openForm()">+ 添加保单</button>
     <button onclick="document.getElementById('importFile').click()">导入</button>
     <button onclick="exportData()">导出 JSON</button>
-    <button onclick="exportExcel()">导出 Excel</button>
-    <input type="file" id="importFile" accept=".json,.csv" style="display:none" onchange="importData(this)">
+    <button onclick="exportExcel()">导出 Excel 模板</button>
+    <input type="file" id="importFile" accept=".json,.csv,.xls,.xlsx" style="display:none" onchange="importData(this)">
   </div>
 </header>
 
 <div class="wrap">
+  <div class="onboarding">
+    快速上手：1. <strong>导出 Excel 模板</strong> → 2. <strong>在 Excel 内填写数据</strong> → 3. <strong>导入 Excel 批量生成数据</strong>；后续再用「添加保单」逐个补充。建议先批量，再单个。
+  </div>
   <div id="renewBanner"></div>
   <div class="kpis" id="kpis"></div>
 
@@ -195,16 +203,27 @@
     <div class="form-grid">
       <label>保单号<input id="i_policyNo" type="text"></label>
       <label>投保人<input id="i_applicant" type="text"></label>
-      <label>被保人<input id="i_insured" type="text"></label>
+      <label>被保人<span class="required">*</span><input id="i_insured" type="text" required></label>
       <label>被保人身份证<input id="i_insuredId" type="text"></label>
-      <label>险种<input id="i_category" type="text" placeholder="百万医疗险/定期寿险…"></label>
-      <label>产品名称<input id="i_product" type="text"></label>
+      <label>险种<span class="required">*</span>
+        <select id="i_categorySelect" onchange="onCategoryChange(this)">
+          <option value="">请选择/手动填写</option>
+          <option value="百万医疗险">百万医疗险</option>
+          <option value="寿险">寿险</option>
+          <option value="重疾险">重疾险</option>
+          <option value="意外险">意外险</option>
+          <option value="年金险">年金险</option>
+          <option value="__other__">其他（手动填写）</option>
+        </select>
+        <input id="i_category" type="text" placeholder="请输入险种" style="display:none;margin-top:6px;">
+      </label>
+      <label>产品名称<span class="required">*</span><input id="i_product" type="text" required></label>
       <label>保险公司<input id="i_insurer" type="text"></label>
-      <label>年缴保费(元)<input id="i_annualPremium" type="number" step="0.01"></label>
+      <label>年缴保费(元)<span class="required">*</span><input id="i_annualPremium" type="number" step="0.01" required></label>
       <label>保险期间(原文)<input id="i_period" type="text" placeholder="如：1 年（2024 年 01 月 07 日 - 2025 年 01 月 06 日）或 保至 60 周岁(1990-10-15起）"></label>
       <label>受益人<input id="i_beneficiary" type="text"></label>
       <label>等待期(天)<input id="i_waitingPeriod" type="number"></label>
-      <label>缴费方式<input id="i_payMethod" type="text" placeholder="年缴 / 月缴"></label>
+      <label>缴费方式<span class="required">*</span><input id="i_payMethod" type="text" placeholder="年缴 / 月缴" required></label>
       <label>缴费日<input id="i_payDate" type="text" placeholder="如：1月6日"></label>
       <label>缴费银行卡<input id="i_payCard" type="text"></label>
       <label class="form-full">备注（保障上限）<input id="i_remark" type="text" placeholder="如：交至 65 周岁"></label>
@@ -213,7 +232,7 @@
         <input id="i_file" type="file">
       </label>
     </div>
-    <div class="hint">提示：到期日由“保险期间”自动解析；含“保至 N 周岁”时需填写被保人身份证以计算。缺失项留空即可。</div>
+    <div class="hint"><span class="required">*</span> 为必填项。提示：到期日由“保险期间”自动解析；含“保至 N 周岁”时需填写被保人身份证以计算。</div>
     <div class="modal-actions">
       <button onclick="closeForm()">取消</button>
       <button class="primary" onclick="saveForm()">保存</button>
@@ -287,11 +306,16 @@ function savePolicies(){ localStorage.setItem(LS_KEY, JSON.stringify(policies));
 
 /* ---------- IndexedDB 合同文件 ---------- */
 let db;
-function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open('policyContracts',1);r.onupgradeneeded=e=>{e.target.result.createObjectStore('files');};r.onsuccess=e=>{db=e.target.result;res();};r.onerror=e=>rej(e);});}
-function saveFile(id,file){return new Promise((res,rej)=>{const tx=db.transaction('files','readwrite');tx.objectStore('files').put(file,id);tx.oncomplete=()=>res();tx.onerror=()=>rej();});}
-function getFile(id){return new Promise((res)=>{const tx=db.transaction('files','readonly');const rq=tx.objectStore('files').get(id);rq.onsuccess=()=>res(rq.result);});}
-function delFile(id){return new Promise((res)=>{if(!db)return res();const tx=db.transaction('files','readwrite');tx.objectStore('files').delete(id);tx.oncomplete=()=>res();});}
-async function hasFile(id){const f=await getFile(id);return !!f;}
+function openDB(){return new Promise((res)=>{try{
+  const r=indexedDB.open('policyContracts',1);
+  r.onupgradeneeded=e=>{ e.target.result.createObjectStore('files'); };
+  r.onsuccess=e=>{ db=e.target.result; res(); };
+  r.onerror=()=>res(); r.onblocked=()=>res();
+}catch(e){ res(); }});}
+function saveFile(id,file){return new Promise((res)=>{ if(!db)return res(); try{const tx=db.transaction('files','readwrite');tx.objectStore('files').put(file,id);tx.oncomplete=()=>res();tx.onerror=()=>res();}catch(e){res();} });}
+function getFile(id){return new Promise((res)=>{ if(!db)return res(null); try{const tx=db.transaction('files','readonly');const rq=tx.objectStore('files').get(id);rq.onsuccess=()=>res(rq.result);rq.onerror=()=>res(null);}catch(e){res(null);} });}
+function delFile(id){return new Promise((res)=>{if(!db)return res();try{const tx=db.transaction('files','readwrite');tx.objectStore('files').delete(id);tx.oncomplete=()=>res();tx.onerror=()=>res();}catch(e){res();}});}
+async function hasFile(id){try{const f=await getFile(id);return !!f;}catch(e){return false;}}
 
 /* ---------- 日期与状态解析 ---------- */
 function parseEnd(period, insuredId){
@@ -429,14 +453,14 @@ function renderCharts(){
 
 /* ---------- 筛选与明细表（可拖拽列） ---------- */
 const COLUMNS=[
-  {key:'insured',label:'被保人',sort:true,edit:true,r:p=>`${p.insured||'—'}`},
+  {key:'insured',label:'被保人',sort:true,edit:true,required:true,r:p=>`${p.insured||'—'}`},
   {key:'applicant',label:'投保人',sort:true,edit:true,r:p=>`${p.applicant||'—'}`},
-  {key:'category',label:'险种',sort:true,edit:true,r:p=>`<span class="tag cat">${p.category||'—'}</span>`},
-  {key:'product',label:'产品名称',sort:true,edit:true,r:p=>`<span title="${p.product||''}">${cleanProduct(p.product)}</span>`},
+  {key:'category',label:'险种',sort:true,edit:true,required:true,r:p=>`<span class="tag cat">${p.category||'—'}</span>`},
+  {key:'product',label:'产品名称',sort:true,edit:true,required:true,r:p=>`<span title="${p.product||''}">${cleanProduct(p.product)}</span>`},
   {key:'insurer',label:'保险公司',sort:true,edit:true,r:p=>`${shortInsurer(p.insurer)}`},
   {key:'payDate',label:'缴费日',sort:true,edit:true,r:p=>`${p.payDate||'—'}`},
-  {key:'payMethod',label:'缴费方式',sort:true,edit:true,r:p=>`${p.payMethod||'—'}`},
-  {key:'annualPremium',label:'当年缴费额度',sort:true,edit:true,align:'center',r:p=>`${fmtY(p.annualPremium)}`},
+  {key:'payMethod',label:'缴费方式',sort:true,edit:true,required:true,r:p=>`${p.payMethod||'—'}`},
+  {key:'annualPremium',label:'当年缴费额度',sort:true,edit:true,required:true,align:'center',r:p=>`${fmtY(p.annualPremium)}`},
   {key:'amount',label:'保额',sort:true,edit:true,align:'center',r:p=>`<span title="${p.amount||''}">${fmtAmount(p)}</span>`},
   {key:'remark',label:'备注（保障上限）',sort:true,edit:true,r:p=>`${p.remark||'—'}`},
   {key:'insurerPhone',label:'保险公司电话',sort:true,edit:true,r:p=>`${p.insurerPhone||'—'}`},
@@ -498,8 +522,8 @@ function initFilters(){
   const ins=[...new Set(policies.map(p=>p.insured))].filter(Boolean).sort();
   const cats=[...new Set(policies.map(p=>p.category))].filter(Boolean).sort();
   const fi=document.getElementById('fInsured'), fc=document.getElementById('fCat');
-  ins.forEach(v=>fi.add(new Option(v,v)));
-  cats.forEach(v=>fc.add(new Option(v,v)));
+  if(fi){ fi.innerHTML='<option value="">全部被保人</option>'; ins.forEach(v=>fi.add(new Option(v,v))); }
+  if(fc){ fc.innerHTML='<option value="">全部险种</option>'; cats.forEach(v=>fc.add(new Option(v,v))); }
 }
 function setSortMode(m){ sortMode=m; localStorage.setItem('familySortMode',m); renderTable(); }
 function getFiltered(){
@@ -531,7 +555,7 @@ function getFiltered(){
 }
 async function renderTable(){
   const list=getFiltered();
-  for(const p of list){ p._hasFile=await hasFile(p.id); }
+  try{ for(const p of list){ p._hasFile=await hasFile(p.id); } }catch(e){ /* 合同检测失败不阻断表格渲染 */ }
   renderTableBody(list);
   document.getElementById('cnt').textContent=policies.length;
 }
@@ -541,7 +565,7 @@ function renderTableBody(list){
   const isManual=(sortMode==='manual');
   tb.innerHTML=list.map(p=>{
     const dragAttr=isManual?` draggable="true" ondragstart="rowDragStart(event,'${p.id}')" ondragover="rowDragOver(event)" ondragleave="rowDragLeave(event)" ondrop="rowDrop(event,'${p.id}')"`:'';
-    return `<tr${dragAttr}>`+COL_ORDER.map(k=>{
+    return `<tr data-id="${p.id}"${dragAttr}>`+COL_ORDER.map(k=>{
       const c=colByKey[k];
       const ea=c.edit?` ondblclick="editCell('${p.id}','${k}',this)"`:'';
       const ta=c.align?` style="text-align:${c.align}"`:'';
@@ -616,12 +640,26 @@ function openForm(id){
   document.getElementById('formTitle').textContent=id?'编辑保单':'添加保单';
   const p=id?policies.find(x=>x.id===id):{};
   const set=(k,v)=>{const e=document.getElementById('i_'+k); if(e) e.value=v??'';};
-  ['policyNo','applicant','insured','insuredId','category','product','insurer','annualPremium','period','beneficiary','waitingPeriod','payMethod','payDate','payCard','remark','amount'].forEach(k=>set(k,p[k]));
+  ['policyNo','applicant','insured','insuredId','product','insurer','annualPremium','period','beneficiary','waitingPeriod','payMethod','payDate','payCard','remark','amount'].forEach(k=>set(k,p[k]));
+  setCategory(p.category||'');
   document.getElementById('i_file').value='';
   document.getElementById('mask').style.display='flex';
 }
 function closeForm(){ document.getElementById('mask').style.display='none'; }
-function saveForm(){
+const CATEGORY_PRESETS=['百万医疗险','寿险','重疾险','意外险','年金险'];
+function setCategory(value){
+  const sel=document.getElementById('i_categorySelect');
+  const custom=document.getElementById('i_category');
+  if(CATEGORY_PRESETS.includes(value)){ sel.value=value; custom.style.display='none'; custom.value=value; }
+  else if(value){ sel.value='__other__'; custom.style.display='block'; custom.value=value; }
+  else { sel.value=''; custom.style.display='none'; custom.value=''; }
+}
+function onCategoryChange(sel){
+  const custom=document.getElementById('i_category');
+  if(sel.value==='__other__'){ custom.style.display='block'; custom.value=''; custom.focus(); }
+  else { custom.style.display='none'; custom.value=sel.value; }
+}
+async function saveForm(){
   const g=k=>document.getElementById('i_'+k).value.trim();
   const rec={
     policyNo:g('policyNo'),applicant:g('applicant'),insured:g('insured'),insuredId:g('insuredId'),
@@ -631,6 +669,11 @@ function saveForm(){
     waitingPeriod:g('waitingPeriod')?+g('waitingPeriod'):null,
     payMethod:g('payMethod'),payDate:g('payDate'),payCard:g('payCard'),remark:g('remark'),amount:g('amount')
   };
+  const REQUIRED_FIELDS=['insured','category','product','annualPremium','payMethod'];
+  const LABEL_MAP={annualPremium:'年缴保费(元)', payMethod:'缴费方式'};
+  const labelOf=k=>(colByKey[k]&&colByKey[k].label)||LABEL_MAP[k]||k;
+  const missing=REQUIRED_FIELDS.filter(k=>{ const v=rec[k]; return v==null || String(v).trim()===''; });
+  if(missing.length){ toast(`请填写必填项：${missing.map(labelOf).join('、')}`); return; }
   const file=document.getElementById('i_file').files[0];
   if(editingId){
     const idx=policies.findIndex(x=>x.id===editingId);
@@ -647,34 +690,77 @@ function saveForm(){
     }
     policies[idx]={...policies[idx],...rec};
     if(synced>0) toast(`已同步更新 ${synced} 条同名记录`);
+    else toast('保单已更新');
   }else{
     rec.id='p'+Date.now()+Math.floor(Math.random()*1000);
     policies.push(rec); rowOrder.push(rec.id);
+    toast('保单已添加');
   }
   savePolicies();
   if(file){ saveFile(rec.id||editingId, file); }
-  closeForm(); refreshAll();
+  closeForm(); await refreshAll();
+  const targetId=editingId||rec.id;
+  highlightRow(targetId);
 }
 function editRow(id){ openForm(id); }
 function delRow(id){ if(confirm('确定删除该保单？')){ policies=policies.filter(p=>p.id!==id); delFile(id); savePolicies(); loadRowOrder(); refreshAll(); } }
 
 /* ---------- 导入 / 导出 ---------- */
+function downloadBlob(blob,name){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000);
+}
 function exportData(){
   const blob=new Blob([JSON.stringify(policies,null,2)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='家庭保单备份.json'; a.click();
+  downloadBlob(blob,'家庭保单备份.json');
 }
-/* 导出 Excel（.xls，离线、无 CDN）：采用当前明细表列顺序与列名，仅导出数据列（不含「合同」「操作」按钮列） */
+/* Excel 模板列：与被保人/投保人/险种/产品名称/保险公司/当年缴费额度/保额/缴费日/缴费方式/受益人/状态/微信公众号/保险公司电话/经纪人电话/备注 完全一致 */
+const EXCEL_COLS=[
+  {key:'insured',label:'被保人'},
+  {key:'applicant',label:'投保人'},
+  {key:'category',label:'险种'},
+  {key:'product',label:'产品名称'},
+  {key:'insurer',label:'保险公司（可选填)'},
+  {key:'annualPremium',label:'当年缴费额度'},
+  {key:'amount',label:'保额'},
+  {key:'payDate',label:'缴费日'},
+  {key:'payMethod',label:'缴费方式（可选填)'},
+  {key:'beneficiary',label:'受益人（可选填)'},
+  {key:'status',label:'状态'},
+  {key:'app',label:'微信/公众号（可选填)'},
+  {key:'insurerPhone',label:'保险公司电话（可选填)'},
+  {key:'broker',label:'经纪人电话（可选填)'},
+  {key:'remark',label:'备注（可选填)'}
+];
+function excelVal(p,c){ return c.key==='status' ? (p.statusText||'') : valOf(p,c.key); }
+function excelCell(v){ return `<Cell><Data ss:Type="String">${escapeHtml(String(v))}</Data></Cell>`; }
+/* 导出 Excel（.xls，离线、无 CDN）：完全按上面 15 列模板生成，Excel 一定能显示表头 */
 function exportExcel(){
-  const keys=COL_ORDER.filter(k=>k!=='file'&&k!=='actions');
-  const cols=keys.map(k=>colByKey[k]).filter(Boolean);
-  const head=cols.map(c=>`<th>${escapeHtml(c.label)}</th>`).join('');
-  const rows=policies.map(p=>'<tr>'+cols.map(c=>{
-    const v = c.key==='status' ? (p.statusText||'') : valOf(p,c.key);
-    return `<td>${escapeHtml(String(v))}</td>`;
-  }).join('')+'</tr>').join('');
-  const html='<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"><style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px 8px;white-space:nowrap}th{background:#eef3fb;font-weight:bold}</style></head><body><table border="1">'+('<thead><tr>'+head+'</tr></thead>')+'<tbody>'+rows+'</tbody></table></body></html>';
-  const blob=new Blob(['\ufeff'+html],{type:'application/vnd.ms-excel;charset=utf-8'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='家庭保单明细表.xls'; a.click();
+  const headCells=EXCEL_COLS.map(c=>excelCell(c.label)).join('');
+  let body='';
+  if(policies.length){
+    body=policies.map(p=>'<Row>'+EXCEL_COLS.map(c=>excelCell(excelVal(p,c))).join('')+'</Row>').join('');
+  }else{
+    // 空数据时给一行脱敏示例，方便用户照抄填写（导入时会自动跳过此行）
+    body='<Row>'+EXCEL_COLS.map((c,i)=>excelCell([
+      '参考示例','示例投保人甲','示例被保人甲','百万医疗险','示例产品名称','示例保险公司',
+      '1841','400万','1月6日','年缴','示例受益人','保障中','【示例】微信公众号','95518',
+      '13800000000【示例顾问】','交至 65 周岁'
+    ][i]??'')).join('')+'</Row>';
+  }
+  const xml=`<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Worksheet ss:Name="保单明细">
+  <Table ss:ExpandedColumnCount="${EXCEL_COLS.length}" ss:ExpandedRowCount="${(policies.length||1)+1}" x:FullColumns="1" x:FullRows="1">
+   <Row>${headCells}</Row>
+   ${body}
+  </Table>
+ </Worksheet>
+</Workbook>`;
+  downloadBlob(new Blob(['\ufeff'+xml],{type:'application/vnd.ms-excel;charset=utf-8'}),'家庭保单明细表模板.xls');
 }
 /* 轻量提示 */
 let _toastT=null;
@@ -684,27 +770,89 @@ function toast(msg){
   el.textContent=msg; el.style.opacity='1';
   clearTimeout(_toastT); _toastT=setTimeout(()=>{ el.style.opacity='0'; },2200);
 }
-function importData(input){
+function highlightRow(id){
+  const row=document.querySelector(`tr[data-id="${id}"]`);
+  if(row){ row.scrollIntoView({behavior:'smooth',block:'center'}); row.classList.add('highlight-row'); setTimeout(()=>row.classList.remove('highlight-row'),2000); return; }
+  // 当前筛选把它藏起来了：清空筛选并重渲染，保证新添加/编辑的保单一定可见
+  ['fInsured','fCat','fStatus','fSearch'].forEach(k=>{ const el=document.getElementById(k); if(el) el.value=''; });
+  initFilters(); renderTable();
+  setTimeout(()=>{ const r=document.querySelector(`tr[data-id="${id}"]`); if(r){ r.scrollIntoView({behavior:'smooth',block:'center'}); r.classList.add('highlight-row'); setTimeout(()=>r.classList.remove('highlight-row'),2000); } },80);
+}
+function normLabel(l){ return String(l==null?'':l).replace(/[（(].*?[）)]/g,'').replace(/\s+/g,'').trim(); }
+const labelToKeyMap={};
+COLUMNS.forEach(c=>labelToKeyMap[normLabel(c.label)]=c.key);
+EXCEL_COLS.forEach(c=>labelToKeyMap[normLabel(c.label)]=c.key);
+function labelToKey(l){ return labelToKeyMap[normLabel(l)]; }
+function convertImportValue(k,v){
+  v=(v==null?'':String(v).trim());
+  if(k==='annualPremium'||k==='waitingPeriod'){ const n=parseFloat(v); return v===''||isNaN(n)?null:n; }
+  return v;
+}
+async function importData(input){
   const f=input.files[0]; if(!f) return;
   const rd=new FileReader();
-  rd.onload=()=>{
+  rd.onload=async()=>{
     try{
       const data=JSON.parse(rd.result);
-      if(Array.isArray(data)){ data.forEach((p,i)=>{ if(!p.id) p.id='p'+Date.now()+i; }); policies=data; savePolicies(); loadRowOrder(); refreshAll(); alert('导入成功：'+data.length+' 条'); }
-    }catch(e){
-      // 尝试 CSV
-      const text=rd.result; const rows=parseCSV(text);
-      if(rows.length){ policies=rows.map((r,i)=>({id:'p'+Date.now()+i,...r})); savePolicies(); loadRowOrder(); refreshAll(); alert('CSV 导入成功：'+rows.length+' 条'); }
-      else alert('无法解析文件，请使用本看板导出的 JSON 或标准 CSV。');
-    }
+      if(Array.isArray(data)){ await importRows(data); input.value=''; return; }
+    }catch(_){}
+    const text=rd.result.replace(/^\uFEFF/,'');
+    let rows=parseSpreadsheetXML(text);
+    if(!rows.length) rows=parseCSV(text);
+    if(rows.length){ await importRows(rows); }
+    else { alert('无法解析文件，请使用本看板导出的 JSON / Excel 模板（或标准 CSV）。'); }
     input.value='';
   };
   rd.readAsText(f);
 }
+async function importRows(rows){
+  rows.forEach((p,i)=>{ if(!p.id) p.id='p'+Date.now()+i; });
+  policies=rows; savePolicies(); loadRowOrder(); await refreshAll();
+  alert('导入成功：'+rows.length+' 条');
+}
+function parseSpreadsheetXML(text){
+  try{
+    const doc=new DOMParser().parseFromString(text,'application/xml');
+    const rowEls=doc.getElementsByTagName('Row');
+    if(!rowEls.length) return [];
+    const head=[]; const out=[];
+    for(let i=0;i<rowEls.length;i++){
+      const cells=rowEls[i].getElementsByTagName('Cell');
+      const vals=[]; for(let j=0;j<cells.length;j++){ const d=cells[j].getElementsByTagName('Data')[0]; vals.push(d?d.textContent:''); }
+      if(i===0){ vals.forEach(v=>head.push(String(v).trim())); continue; }
+      const first=String(vals[0]).trim();
+      if(!first||first==='参考示例'||first.indexOf('暂无数据')===0) continue;
+      const o={}; head.forEach((h,j)=>{ const k=labelToKey(h); if(k) o[k]=convertImportValue(k,vals[j]); });
+      if(Object.keys(o).length) out.push(o);
+    }
+    return out;
+  }catch(e){ return []; }
+}
 function parseCSV(text){
-  const lines=text.split(/\r?\n/).filter(l=>l.trim()); if(lines.length<2) return [];
-  const head=lines[0].split(',').map(h=>h.trim());
-  return lines.slice(1).map(l=>{ const c=l.split(','); const o={}; head.forEach((h,i)=>o[h]=c[i]?c[i].trim():''); if(o.annualPremium) o.annualPremium=+o.annualPremium; return o; });
+  const rows=[]; let row=[], val='', inQuotes=false;
+  const pushRow=()=>{ if(row.length||val){ row.push(val); rows.push(row); row=[]; val=''; } };
+  for(let i=0;i<text.length;i++){ const ch=text[i], next=text[i+1];
+    if(inQuotes){
+      if(ch==='"'){ if(next==='"'){ val+='"'; i++; } else inQuotes=false; }
+      else val+=ch;
+    } else {
+      if(ch==='"'){ inQuotes=true; }
+      else if(ch===','){ row.push(val); val=''; }
+      else if(ch==='\n'||ch==='\r'){ pushRow(); if(ch==='\r'&&next==='\n') i++; }
+      else val+=ch;
+    }
+  }
+  pushRow();
+  if(rows.length<2) return [];
+  const head=rows[0].map(h=>h.trim());
+  return rows.slice(1).map(r=>{
+    const o={};
+    head.forEach((h,i)=>{ const k=labelToKey(h); if(k) o[k]=convertImportValue(k,r[i]); });
+    return o;
+  }).filter(o=>{
+    const first=Object.values(o)[0];
+    return Object.keys(o).length && String(first).trim()!=='参考示例' && String(first).indexOf('暂无数据')!==0;
+  });
 }
 
 /* ---------- 待办事项（本地存储） ---------- */
@@ -906,7 +1054,7 @@ function enableNotify(){
 function disableNotify(){ localStorage.removeItem('familyNotify'); renderReminder(); }
 
 /* ---------- 汇总刷新 ---------- */
-function refreshAll(){ enrich(); renderKPIs(); renderRenewStat(); renderCharts(); initFilters(); renderTableHeader(); renderTable(); renderReminder(); }
+async function refreshAll(){ enrich(); renderKPIs(); renderRenewStat(); renderCharts(); initFilters(); renderTableHeader(); await renderTable(); renderReminder(); }
 
 /* ---------- 启动 ---------- */
 (async function(){
@@ -917,7 +1065,7 @@ function refreshAll(){ enrich(); renderKPIs(); renderRenewStat(); renderCharts()
   loadTodos();
   loadColOrder();
   loadAnalytics();
-  refreshAll();
+  await refreshAll();
   renderTodos();
   renderRateShell(); renderRateTable(); renderRateChart(); renderRateYoY();
 })();
