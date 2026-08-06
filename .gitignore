@@ -1,0 +1,7 @@
+# 临时/辅助脚本，不纳入版本存档
+_check.js
+__chk.js
+*.py
+
+# WorkBuddy 工具数据（含记忆），不纳入代码仓库
+.workbuddy/

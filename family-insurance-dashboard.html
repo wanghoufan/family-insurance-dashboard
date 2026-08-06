@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>家庭保单数据看板</title>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#171c23; --panel2:#1e252e; --border:#2a323c;
+    --text:#e6ebf1; --muted:#8b97a6; --accent:#4ea1ff; --accent2:#34d399;
+    --warn:#f59e0b; --danger:#ef4444; --ok:#34d399; --shadow:0 6px 22px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,Roboto,sans-serif;font-size:14px;line-height:1.5;}
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 24px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#141a21,#0f1216);position:sticky;top:0;z-index:20;}
+  h1{font-size:19px;margin:0;font-weight:650;letter-spacing:.5px;}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:3px;}
+  .lock{display:inline-flex;align-items:center;gap:5px;background:#13351f;color:#7ee2a8;border:1px solid #1f5e38;padding:3px 9px;border-radius:999px;font-size:11.5px;margin-left:10px;vertical-align:middle;}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  button{font-family:inherit;cursor:pointer;border:1px solid var(--border);background:var(--panel2);color:var(--text);padding:8px 13px;border-radius:9px;font-size:13px;transition:.15s;}
+  button:hover{border-color:var(--accent);background:#243040;}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#06203a;font-weight:600;}
+  button.primary:hover{filter:brightness(1.08);}
+  .wrap{padding:22px 24px 60px;max-width:1280px;margin:0 auto;}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;}
+  .kpi{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow);}
+  .kpi .label{color:var(--muted);font-size:12.5px;}
+  .kpi .val{font-size:26px;font-weight:700;margin-top:6px;}
+  .kpi .val small{font-size:13px;color:var(--muted);font-weight:500;}
+  .kpi.alert .val{color:var(--danger);}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;box-shadow:var(--shadow);}
+  .card h3{margin:0 0 14px;font-size:15px;font-weight:600;}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:12.5px;color:var(--muted);}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .dot{width:10px;height:10px;border-radius:3px;display:inline-block;}
+  .bar-row{display:flex;align-items:center;gap:10px;margin:9px 0;font-size:13px;}
+  .bar-row .name{width:72px;color:var(--muted);flex-shrink:0;}
+  .bar-track{flex:1;background:var(--panel2);border-radius:6px;height:18px;overflow:visible;position:relative;}
+  .bar-fill{height:100%;border-radius:6px;}
+  .bar-val{position:absolute;left:0;right:0;top:0;bottom:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#e6ebf1;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,.6);pointer-events:none;}
+  .renew{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:22px;}
+  .rstat{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow);}
+  .rstat .n{font-size:30px;font-weight:700;}
+  .filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center;}
+  select,input[type=text]{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;font-family:inherit;font-size:13px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{padding:11px 10px;text-align:left;border-bottom:1px solid var(--border);}
+  .cell-edit{cursor:text;}
+  .cell-edit:hover{outline:1px dashed #3a4654;outline-offset:-3px;}
+  th{color:var(--muted);font-weight:600;font-size:12.5px;cursor:pointer;user-select:none;white-space:nowrap;}
+  tbody tr:hover{background:var(--panel2);}
+  .tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11.5px;font-weight:600;}
+  .tag.expired{background:#3a1414;color:#ff9a9a;}
+  .tag.active{background:#10331f;color:#7ee2a8;}
+  .tag.soon{background:#3a2a0e;color:#ffd27a;}
+  .tag.unknown{background:#2a2f37;color:#aab4c0;}
+  .tag.cat{background:#16283d;color:#8fc4ff;}
+  .mini{border:none;background:transparent;padding:4px 8px;font-size:12px;border-radius:6px;}
+  .mini.open{color:var(--accent2);}
+  .mini.up{color:var(--muted);}
+  .mini.rep{color:#fbbf24;}
+  .mini.del{color:#f87171;}
+  .mini.del:hover{background:rgba(248,113,113,.12);}
+  .empty{color:var(--muted);text-align:center;padding:30px;}
+  .modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 16px;overflow:auto;}
+  .modal{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:22px;width:560px;max-width:100%;box-shadow:var(--shadow);}
+  .modal h3{margin:0 0 16px;font-size:17px;}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .form-grid label{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--muted);}
+  .form-grid input,.form-grid select{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 10px;font-size:13px;}
+  .form-full{grid-column:1 / -1;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;}
+  .hint{color:var(--muted);font-size:12px;margin-top:8px;line-height:1.6;}
+  footer{color:var(--muted);font-size:12px;text-align:center;padding:24px;border-top:1px solid var(--border);margin-top:30px;}
+  @media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr);}.grid2{grid-template-columns:1fr;}.renew{grid-template-columns:1fr;}.form-grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>家庭保单数据看板 <span class="lock">🔒 数据仅存本机</span></h1>
+    <div class="sub">本地 HTML · 不上传任何服务器 · 记录存 localStorage，合同文件存 IndexedDB</div>
+  </div>
+  <div class="actions">
+    <button class="primary" onclick="openForm()">+ 添加保单</button>
+    <button onclick="document.getElementById('importFile').click()">导入</button>
+    <button onclick="exportData()">导出</button>
+    <input type="file" id="importFile" accept=".json,.csv" style="display:none" onchange="importData(this)">
+  </div>
+</header>
+
+<div class="wrap">
+  <div id="renewBanner"></div>
+  <div class="kpis" id="kpis"></div>
+
+  <div class="renew" id="renewStat"></div>
+
+  <div class="grid2">
+    <div class="card">
+      <h3>险种分布</h3>
+      <div id="donut"></div>
+    </div>
+    <div class="card">
+      <h3>被保人 · 年缴保费构成</h3>
+      <div id="insuredBars"></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h3>投保人 · 年缴保费承担</h3>
+      <div id="applicantBars"></div>
+    </div>
+    <div class="card">
+      <h3>保险公司分布</h3>
+      <div id="insurerBars"></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3>保单明细</h3>
+    <div class="filters">
+      <select id="fInsured" onchange="renderTable()"><option value="">全部被保人</option></select>
+      <select id="fCat" onchange="renderTable()"><option value="">全部险种</option></select>
+      <select id="fStatus" onchange="renderTable()">
+        <option value="">全部状态</option>
+        <option value="expired">已到期（需续保）</option>
+        <option value="soon">即将到期</option>
+        <option value="active">保障中</option>
+        <option value="unknown">需人工核对</option>
+      </select>
+      <input type="text" id="fSearch" placeholder="搜索保单号/产品/保险公司" oninput="renderTable()" style="flex:1;min-width:180px;">
+      <select id="sortMode" onchange="setSortMode(this.value)" title="排序方式">
+        <option value="manual">手动拖拽排序</option>
+        <option value="addAsc">添加顺序·正序</option>
+        <option value="addDesc">添加顺序·倒序</option>
+        <option value="name">按姓名（被保人）</option>
+        <option value="premiumDesc">当年缴费额度·从高到低</option>
+        <option value="premiumAsc">当年缴费额度·从低到高</option>
+      </select>
+    </div>
+    <div style="overflow-x:auto;">
+      <table id="tbl">
+        <thead><tr id="theadRow"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="hint">提示：用上方「排序方式」切换 <b>手动拖拽 / 添加正序 / 添加倒序 / 按姓名 / 当年缴费额度</b>；选「手动拖拽排序」后可直接<b>拖动整行</b>调整顺序（自动记忆）。表头「⠿」可拖动调整列顺序；<b>双击单元格</b>可直接修改内容（回车保存，Esc 取消）。</div>
+    </div>
+  </div>
+</div>
+
+<footer>共 <span id="cnt">0</span> 条保单 · 示例数据（已脱敏）· 全部数据仅保存在你本机浏览器</footer>
+
+<div class="wrap">
+  <div class="card" style="margin-top:0;">
+    <h3>待办事项</h3>
+    <div class="filters">
+      <input type="text" id="todoInput" placeholder="输入待办事项，回车或点“添加”" style="flex:1;min-width:200px;" onkeydown="if(event.key==='Enter')addTodoFromInput()">
+      <button class="primary" onclick="addTodoFromInput()">+ 添加</button>
+    </div>
+    <ul id="todoList" style="list-style:none;padding:0;margin:12px 0 0;"></ul>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="card" style="margin-top:0;">
+    <h3>数据分析 · 费率 / 缴费趋势（按险种）</h3>
+    <div class="hint">费率随年龄/年度调整。先选险种，再<b>手动录入</b>每位家庭成员各年度的缴费额度（元）；点「+ 新增年度」补未来年份、「+ 新增被保人」补成员；下方自动计算每年相对上一年涨幅（YoY）。数据仅存本机。</div>
+    <div class="filters" style="margin-bottom:12px">
+      <span style="color:var(--muted);font-size:13px">险种</span>
+      <select id="rateType" onchange="switchRateType(this.value)"></select>
+      <button onclick="addRateType()">+ 新增险种</button>
+    </div>
+    <div style="overflow-x:auto;">
+      <table id="rateTable" style="min-width:520px"></table>
+    </div>
+    <div class="actions" style="margin-top:14px;">
+      <button class="primary" onclick="addRateYear()">+ 新增年度</button>
+      <button onclick="addRatePerson()">+ 新增被保人</button>
+      <button onclick="resetRateType()">恢复初始数据</button>
+    </div>
+    <div id="rateChart" style="margin-top:18px;"></div>
+    <div id="rateYoY"></div>
+  </div>
+</div>
+
+
+<!-- 添加/编辑 弹窗 -->
+<div class="modal-mask" id="mask" onclick="if(event.target===this)closeForm()">
+  <div class="modal">
+    <h3 id="formTitle">添加保单</h3>
+    <div class="form-grid">
+      <label>保单号<input id="i_policyNo" type="text"></label>
+      <label>投保人<input id="i_applicant" type="text"></label>
+      <label>被保人<input id="i_insured" type="text"></label>
+      <label>被保人身份证<input id="i_insuredId" type="text"></label>
+      <label>险种<input id="i_category" type="text" placeholder="百万医疗险/定期寿险…"></label>
+      <label>产品名称<input id="i_product" type="text"></label>
+      <label>保险公司<input id="i_insurer" type="text"></label>
+      <label>年缴保费(元)<input id="i_annualPremium" type="number" step="0.01"></label>
+      <label>保险期间(原文)<input id="i_period" type="text" placeholder="如：1 年（2024 年 01 月 07 日 - 2025 年 01 月 06 日）或 保至 60 周岁(1990-10-15起）"></label>
+      <label>受益人<input id="i_beneficiary" type="text"></label>
+      <label>等待期(天)<input id="i_waitingPeriod" type="number"></label>
+      <label>缴费方式<input id="i_payMethod" type="text" placeholder="年缴 / 月缴"></label>
+      <label>缴费日<input id="i_payDate" type="text" placeholder="如：1月6日"></label>
+      <label>缴费银行卡<input id="i_payCard" type="text"></label>
+      <label class="form-full">备注（保障上限）<input id="i_remark" type="text" placeholder="如：交至 65 周岁"></label>
+      <label class="form-full">保险金额/保额说明<input id="i_amount" type="text"></label>
+      <label class="form-full">合同文件（上传后存本机，可点“打开保单”查看）
+        <input id="i_file" type="file">
+      </label>
+    </div>
+    <div class="hint">提示：到期日由“保险期间”自动解析；含“保至 N 周岁”时需填写被保人身份证以计算。缺失项留空即可。</div>
+    <div class="modal-actions">
+      <button onclick="closeForm()">取消</button>
+      <button class="primary" onclick="saveForm()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- 种子数据（示例 / 已脱敏，不含任何真实个人信息） ---------- */
+const DATA_VERSION=4;
+const SEED = [
+  {policyNo:'DEMO000000000001',applicant:'示例投保人甲',insured:'示例被保人甲',insuredId:'110101199001011234',category:'百万医疗险',product:'人保寿险关爱e生长期医疗保险（费率可调）（互联网专属）',amount:'总保额400万元（一般/轻中症/特药各200万，重疾关爱1万，特定重疾关爱10万）',period:'1 年（2026 年 01 月 07 日零时 - 2027 年 01 月 06 日 24 时）',payDate:'1月6日',payMethod:'年缴',remark:'',annualPremium:1841,insurer:'中国人民人寿保险股份有限公司',insurerPhone:'95518转寿险',broker:'13800000000【示例顾问】',beneficiary:'示例被保人甲',waitingPeriod:90,payCard:'622588000000000000',app:'【小程序】人保寿险E服务'},
+  {policyNo:'DEMO000000000001',applicant:'示例投保人甲',insured:'示例被保人乙',insuredId:'110101199001011234',category:'百万医疗险',product:'人保寿险关爱e生长期医疗保险（费率可调）（互联网专属）',amount:'总保额400万元',period:'1 年（2026 年 01 月 07 日零时 - 2027 年 01 月 06 日 24 时）',payDate:'1月6日',payMethod:'年缴',remark:'',annualPremium:219,insurer:'中国人民人寿保险股份有限公司',insurerPhone:'95518转寿险',broker:'13800000000【示例顾问】',beneficiary:'示例被保人乙',waitingPeriod:90,payCard:'622588000000000000',app:'【小程序】人保寿险E服务'},
+  {policyNo:'DEMO000000000002',applicant:'示例投保人甲',insured:'示例被保人甲',insuredId:'110101199001011234',category:'定期寿险',product:'华贵大麦旗舰版A款定期寿险（互联网专属）',amount:'30万',period:'保至 65 周岁(2024-1-7起）',payDate:'1月7日',payMethod:'年缴',remark:'交至 65 周岁',annualPremium:1090.5,insurer:'华贵人寿保险股份有限公司',insurerPhone:'400-684-1888/0851-88574001',broker:'13800000000【示例顾问】',beneficiary:'示例被保人乙100%',waitingPeriod:90,payCard:'622588000000000000',app:'【公众号】华贵保险在线'},
+  {policyNo:'DEMO000000000003',applicant:'示例投保人甲',insured:'示例被保人乙',insuredId:'110101199001011234',category:'定期寿险',product:'华贵大麦旗舰版A款定期寿险（互联网专属）',amount:'50万',period:'保至 60 周岁(2024-1-7起）',payDate:'1月7日',payMethod:'年缴',remark:'交至 60 周岁',annualPremium:523.5,insurer:'华贵人寿保险股份有限公司',insurerPhone:'400-684-1888/0851-88574001',broker:'13800000000【示例顾问】',beneficiary:'法定受益人',waitingPeriod:90,payCard:'622588000000000000',app:'【公众号】华贵保险在线'},
+  {policyNo:'DEMO000000000004',applicant:'示例投保人乙',insured:'示例投保人乙',insuredId:'110101199002022345',category:'百万医疗险',product:'人保寿险关爱e生长期医疗保险（费率可调）（互联网专属）',amount:'总保额400万元',period:'1 年（2026 年 01 月 07 日零时 - 2027 年 01 月 06 日 24 时）',payDate:'1月7日',payMethod:'年缴',remark:'',annualPremium:421,insurer:'中国人民人寿保险股份有限公司',insurerPhone:'95518转寿险',broker:'13800000000【示例顾问】',beneficiary:'示例投保人乙',waitingPeriod:90,payCard:null,app:'【小程序】人保寿险E服务'},
+  {policyNo:'DEMO000000000005',applicant:'示例投保人乙',insured:'示例投保人乙',insuredId:'110101199002022345',category:'定期寿险',product:'华贵大麦旗舰版A款定期寿险（互联网专属）',amount:'100万',period:'保至 60 周岁(2024-1-7起）',payDate:'1月7日',payMethod:'年缴',remark:'交至 60 周岁',annualPremium:675,insurer:'华贵人寿保险股份有限公司',insurerPhone:'400-684-1888/0851-88574001',broker:'13800000000【示例顾问】',beneficiary:'示例被保人甲',waitingPeriod:90,payCard:null,app:'【公众号】华贵保险在线'}
+];
+/* 新增：基本医疗保险（示例数据 / 已脱敏） */
+const BASIC_SEED=[
+  {_seedTag:'basic-1',category:'基本医保',insured:'示例子女甲',applicant:'示例投保人乙',product:'',insurer:'',annualPremium:400,amount:'',period:'1 年（2026 年 01 月 01 日零时 - 2026 年 12 月 31 日 24 时）',payDate:'',payMethod:'年缴',remark:'',insurerPhone:'',broker:'',beneficiary:'',app:''},
+  {_seedTag:'basic-2',category:'基本医保',insured:'示例子女乙',applicant:'示例投保人乙',product:'',insurer:'',annualPremium:400,amount:'',period:'1 年（2026 年 01 月 01 日零时 - 2026 年 12 月 31 日 24 时）',payDate:'',payMethod:'年缴',remark:'',insurerPhone:'',broker:'',beneficiary:'',app:''},
+  {_seedTag:'basic-3',category:'基本医保',insured:'示例被保人乙',applicant:'示例投保人甲',product:'',insurer:'',annualPremium:4944,amount:'',period:'1 年（2026 年 01 月 01 日零时 - 2026 年 12 月 31 日 24 时）',payDate:'每月1日',payMethod:'月缴412',remark:'',insurerPhone:'',broker:'',beneficiary:'',app:''},
+  {_seedTag:'basic-4',category:'基本医保',insured:'示例被保人甲',applicant:'示例被保人甲',product:'',insurer:'',annualPremium:400,amount:'',period:'1 年（2026 年 01 月 01 日零时 - 2026 年 12 月 31 日 24 时）',payDate:'11月1日',payMethod:'年缴',remark:'',insurerPhone:'',broker:'',beneficiary:'',app:''}
+];
+
+const LS_KEY='familyPolicies';
+let policies=[];
+let sortField='endDate', sortDir=1; // 兼容保留（排序改由下拉 sortMode 控制）
+let sortMode='manual'; // 'manual' | 'addAsc' | 'addDesc' | 'name'
+const ROW_ORDER_KEY='familyRowOrder';
+let rowOrder=[];
+function loadRowOrder(){
+  const ids=policies.map(p=>p.id);
+  const raw=localStorage.getItem(ROW_ORDER_KEY);
+  let stored=null; if(raw){ try{ stored=JSON.parse(raw); }catch(e){} }
+  if(Array.isArray(stored)&&stored.length){
+    const kept=stored.filter(k=>ids.includes(k));
+    const missing=ids.filter(k=>!kept.includes(k));
+    rowOrder=kept.concat(missing);
+  } else { rowOrder=ids.slice(); }
+}
+function saveRowOrder(){ localStorage.setItem(ROW_ORDER_KEY, JSON.stringify(rowOrder)); }
+
+/* ---------- 存储 ---------- */
+function loadPolicies(){
+  const ver=localStorage.getItem('familyDataVer');
+  const raw=localStorage.getItem(LS_KEY);
+  let stored=null;
+  if(raw){ try{ stored=JSON.parse(raw); }catch(e){ stored=null; } }
+  if(!stored || !stored.length){
+    policies=[...SEED, ...BASIC_SEED].map((p,i)=>({...p,id:'p'+(i+1)}));
+    savePolicies();
+  } else {
+    policies=stored;
+    if(ver!==String(DATA_VERSION)){
+      // 补齐/更新新增记录（基本医保）：已存在的按最新字段更新，缺失的追加；不覆盖用户原有 6 份保单
+      BASIC_SEED.forEach(b=>{
+        const exist=policies.find(p=>p._seedTag===b._seedTag);
+        if(exist){ Object.assign(exist,{applicant:b.applicant,payMethod:b.payMethod,annualPremium:b.annualPremium,payDate:b.payDate,period:b.period}); }
+        else { policies.push({...b,id:'p'+Date.now()+Math.floor(Math.random()*1000)}); }
+      });
+      savePolicies();
+    }
+  }
+  localStorage.setItem('familyDataVer',String(DATA_VERSION));
+  policies.forEach((p,i)=>{ if(!p.id) p.id='p'+Date.now()+i; });
+  loadRowOrder();
+}
+function savePolicies(){ localStorage.setItem(LS_KEY, JSON.stringify(policies)); }
+
+/* ---------- IndexedDB 合同文件 ---------- */
+let db;
+function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open('policyContracts',1);r.onupgradeneeded=e=>{e.target.result.createObjectStore('files');};r.onsuccess=e=>{db=e.target.result;res();};r.onerror=e=>rej(e);});}
+function saveFile(id,file){return new Promise((res,rej)=>{const tx=db.transaction('files','readwrite');tx.objectStore('files').put(file,id);tx.oncomplete=()=>res();tx.onerror=()=>rej();});}
+function getFile(id){return new Promise((res)=>{const tx=db.transaction('files','readonly');const rq=tx.objectStore('files').get(id);rq.onsuccess=()=>res(rq.result);});}
+function delFile(id){return new Promise((res)=>{if(!db)return res();const tx=db.transaction('files','readwrite');tx.objectStore('files').delete(id);tx.oncomplete=()=>res();});}
+async function hasFile(id){const f=await getFile(id);return !!f;}
+
+/* ---------- 日期与状态解析 ---------- */
+function parseEnd(period, insuredId){
+  if(!period) return null;
+  // 1 年（2026 年 01 月 07 日零时 - 2027 年 01 月 06 日 24 时）
+  let m=period.match(/-\s*(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+  if(m){ return new Date(+m[1], +m[2]-1, +m[3]); }
+  // 保至 65 周岁(2024-1-7起）
+  m=period.match(/保至\s*(\d+)\s*周岁\((\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m && insuredId && insuredId.length>=14){
+    const birthYear=+insuredId.substring(6,10);
+    const n=+m[1];
+    const endYear=birthYear+n;
+    return new Date(endYear, +m[3]-1, +m[4]);
+  }
+  return null;
+}
+function statusOf(end){
+  if(!end) return {key:'unknown',text:'需人工核对',cls:'unknown'};
+  const today=new Date(); today.setHours(0,0,0,0);
+  const diff=(end-today)/86400000;
+  if(diff<0) return {key:'expired',text:'已到期（需续保）',cls:'expired'};
+  if(diff<=30) return {key:'soon',text:'即将到期',cls:'soon'};
+  return {key:'active',text:'保障中',cls:'active'};
+}
+function endLabel(p){
+  if(p.endDate){ return p.endDate.getFullYear()+'-' + String(p.endDate.getMonth()+1).padStart(2,'0') + '-' + String(p.endDate.getDate()).padStart(2,'0'); }
+  return '—';
+}
+
+/* ---------- 计算派生字段 ---------- */
+function enrich(){
+  policies.forEach(p=>{
+    p.endDate=parseEnd(p.period, p.insuredId);
+    const s=statusOf(p.endDate); p.status=s.key; p.statusText=s.text; p.statusCls=s.cls;
+  });
+}
+
+/* ---------- 格式化 ---------- */
+const fmtY=n=>{ if(n==null||isNaN(n)) return '—'; return '¥'+Number(n).toLocaleString('zh-CN',{maximumFractionDigits:2}); };
+function shortInsurer(n){
+  if(!n) return '—';
+  return n.replace(/(保险股份有限公司|股份有限公司|有限责任公司|（集团）有限公司|有限公司)$/,'');
+}
+function cleanProduct(n){
+  if(!n) return '—';
+  const t=String(n).replace(/（.*$/,'').trim();
+  return t||n;
+}
+function fmtAmount(p){
+  const a=p.amount||'';
+  if(p.category==='百万医疗险'){
+    const m=String(a).match(/(\d+(?:\.\d+)?)\s*万/);
+    return m? (m[1]+'万') : (a||'—');
+  }
+  return a.length>42? a.slice(0,42)+'…' : (a||'—');
+}
+
+/* ---------- KPI ---------- */
+function renderKPIs(){
+  const totalPrem=policies.reduce((s,p)=>s+(+p.annualPremium||0),0);
+  const insured=new Set(policies.map(p=>p.insured)).size;
+  const applicants=new Set(policies.map(p=>p.applicant).filter(Boolean)).size;
+  const expired=policies.filter(p=>p.status==='expired').length;
+  const el=document.getElementById('kpis');
+  el.innerHTML=`
+    <div class="kpi"><div class="label">保单总数</div><div class="val">${policies.length}<small> 份</small></div></div>
+    <div class="kpi"><div class="label">被保人 / 投保人</div><div class="val">${insured}<small> / ${applicants} 人</small></div></div>
+    <div class="kpi"><div class="label">当年缴费额度合计</div><div class="val">${fmtY(totalPrem)}</div></div>
+    <div class="kpi alert"><div class="label">已到期需续保</div><div class="val">${expired}<small> 份</small></div></div>`;
+}
+
+/* ---------- 续保统计 ---------- */
+function renderRenewStat(){
+  const c={expired:0,soon:0,active:0,unknown:0};
+  policies.forEach(p=>c[p.status]++);
+  const totalPrem=policies.reduce((s,p)=>s+(+p.annualPremium||0),0);
+  const overduePrem=policies.filter(p=>p.status==='expired').reduce((s,p)=>s+(+p.annualPremium||0),0);
+  document.getElementById('renewStat').innerHTML=`
+    <div class="rstat"><div class="label" style="color:var(--muted);font-size:12.5px">已到期（脱保风险）</div><div class="n" style="color:var(--danger)">${c.expired}</div><div style="color:var(--muted);font-size:12px">涉及年缴 ${fmtY(overduePrem)}</div></div>
+    <div class="rstat"><div class="label" style="color:var(--muted);font-size:12.5px">即将到期(30天内)</div><div class="n" style="color:var(--warn)">${c.soon}</div></div>
+    <div class="rstat"><div class="label" style="color:var(--muted);font-size:12.5px">保障中</div><div class="n" style="color:var(--ok)">${c.active}</div><div style="color:var(--muted);font-size:12px">年缴 ${fmtY(totalPrem)}</div></div>`;
+}
+
+/* ---------- 图表工具 ---------- */
+function donut(seg){
+  const cx=90,cy=90,r=62,sw=26;
+  const total=seg.reduce((s,x)=>s+x.value,0)||1;
+  let angles=seg.map(x=>({...x,frac:x.value/total}));
+  let acc=-90; // 从顶部开始
+  let paths='';
+  angles.forEach(a=>{
+    const start=acc, end=acc+ a.frac*360; acc=end;
+    const a0=start*Math.PI/180, a1=end*Math.PI/180;
+    const x0=cx+r*Math.cos(a0), y0=cy+r*Math.sin(a0);
+    const x1=cx+r*Math.cos(a1), y1=cy+r*Math.sin(a1);
+    const large=(end-start)>180?1:0;
+    paths+=`<path d="M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}" fill="none" stroke="${a.color}" stroke-width="${sw}" stroke-linecap="butt"/>`;
+  });
+  const legend=seg.map(a=>`<span><i class="dot" style="background:${a.color}"></i>${a.label} · ${a.value}份</span>`).join('');
+  return `<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+    <svg width="180" height="180" viewBox="0 0 180 180">
+      <circle cx="90" cy="90" r="62" fill="none" stroke="#222a33" stroke-width="26"/>
+      ${paths}
+      <text x="90" y="84" text-anchor="middle" fill="#e6ebf1" font-size="22" font-weight="700">${seg.reduce((s,x)=>s+x.value,0)}</text>
+      <text x="90" y="104" text-anchor="middle" fill="#8b97a6" font-size="11">份保单</text>
+    </svg>
+    <div class="legend" style="flex-direction:column;gap:8px">${legend}</div></div>`;
+}
+function bars(map, unit){
+  const max=Math.max(...Object.values(map),1);
+  const colors=['#4ea1ff','#34d399','#f59e0b','#a78bfa','#f472b6','#22d3ee'];
+  let i=0;
+  const rows=Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([k,v])=>{
+    const c=colors[i++%colors.length];
+    const pct=(v/max*100).toFixed(1);
+    return `<div class="bar-row"><div class="name">${k}</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${c}"></div><div class="bar-val">${fmtY(v)}</div></div></div>`;
+  }).join('');
+  return rows || '<div class="empty">暂无数据</div>';
+}
+function groupSum(key){
+  const m={}; policies.forEach(p=>{ const k=p[key]||'未填'; m[k]=(m[k]||0)+(+p.annualPremium||0); }); return m;
+}
+
+/* ---------- 渲染图表 ---------- */
+function renderCharts(){
+  const cat={}; policies.forEach(p=>cat[p.category]=(cat[p.category]||0)+1);
+  const catSeg=Object.entries(cat).map(([k,v],i)=>({label:k,value:v,color:['#4ea1ff','#34d399','#f59e0b','#a78bfa','#f472b6'][i%5]}));
+  document.getElementById('donut').innerHTML=catSeg.length?donut(catSeg):'<div class="empty">暂无数据</div>';
+  document.getElementById('insuredBars').innerHTML=bars(groupSum('insured'));
+  document.getElementById('applicantBars').innerHTML=bars(groupSum('applicant'));
+  const insMap={}; policies.forEach(p=>{ const k=shortInsurer(p.insurer)||'未填'; insMap[k]=(insMap[k]||0)+(+p.annualPremium||0); });
+  document.getElementById('insurerBars').innerHTML=bars(insMap);
+}
+
+/* ---------- 筛选与明细表（可拖拽列） ---------- */
+const COLUMNS=[
+  {key:'insured',label:'被保人',sort:true,edit:true,r:p=>`${p.insured||'—'}`},
+  {key:'applicant',label:'投保人',sort:true,edit:true,r:p=>`${p.applicant||'—'}`},
+  {key:'category',label:'险种',sort:true,edit:true,r:p=>`<span class="tag cat">${p.category||'—'}</span>`},
+  {key:'product',label:'产品名称',sort:true,edit:true,r:p=>`<span title="${p.product||''}">${cleanProduct(p.product)}</span>`},
+  {key:'insurer',label:'保险公司',sort:true,edit:true,r:p=>`${shortInsurer(p.insurer)}`},
+  {key:'payDate',label:'缴费日',sort:true,edit:true,r:p=>`${p.payDate||'—'}`},
+  {key:'payMethod',label:'缴费方式',sort:true,edit:true,r:p=>`${p.payMethod||'—'}`},
+  {key:'annualPremium',label:'当年缴费额度',sort:true,edit:true,align:'center',r:p=>`${fmtY(p.annualPremium)}`},
+  {key:'amount',label:'保额',sort:true,edit:true,align:'center',r:p=>`<span title="${p.amount||''}">${fmtAmount(p)}</span>`},
+  {key:'remark',label:'备注（保障上限）',sort:true,edit:true,r:p=>`${p.remark||'—'}`},
+  {key:'insurerPhone',label:'保险公司电话',sort:true,edit:true,r:p=>`${p.insurerPhone||'—'}`},
+  {key:'broker',label:'经纪人电话',sort:true,edit:true,r:p=>`${p.broker||'—'}`},
+  {key:'beneficiary',label:'受益人',sort:true,edit:true,r:p=>`${p.beneficiary||'—'}`},
+  {key:'app',label:'微信/公众号',sort:true,edit:true,r:p=>`${p.app||'—'}`},
+  {key:'status',label:'状态',sort:true,r:p=>`<span class="tag ${p.statusCls}">${p.statusText}</span>`},
+  {key:'file',label:'合同',sort:false,r:p=>p._hasFile
+    ? `<button class="mini open" onclick="openContract('${p.id}')">📂 打开</button><button class="mini rep" title="重新上传替换" onclick="uploadContract('${p.id}')">🔁 替换</button><button class="mini del" title="删除合同" onclick="delContract('${p.id}')">🗑 删除</button>`
+    : `<button class="mini up" title="点击选择，或将合同文件拖拽到此处上传" onclick="uploadContract('${p.id}')" ondragover="event.preventDefault();this.style.background='#1f3a2a';this.style.borderColor='#34d399'" ondragleave="this.style.background='';this.style.borderColor=''" ondrop="event.preventDefault();handleDrop('${p.id}',event)">📎 上传合同</button>`},
+  {key:'actions',label:'操作',sort:false,r:p=>`<button class="mini open" onmousedown="event.stopPropagation()" onclick="editRow('${p.id}')">✎ 编辑</button><button class="mini del" onmousedown="event.stopPropagation()" onclick="delRow('${p.id}')">🗑 删除</button>`}
+];
+const colByKey={}; COLUMNS.forEach(c=>colByKey[c.key]=c);
+const COL_ORDER_KEY='familyColOrder';
+let COL_ORDER=[];
+function loadColOrder(){
+  const raw=localStorage.getItem(COL_ORDER_KEY);
+  let stored=null; if(raw){ try{ stored=JSON.parse(raw); }catch(e){} }
+  const valid=COLUMNS.map(c=>c.key);
+  if(Array.isArray(stored)&&stored.length){
+    const kept=stored.filter(k=>valid.includes(k));
+    const missing=valid.filter(k=>!kept.includes(k));
+    COL_ORDER=kept.concat(missing);
+  } else { COL_ORDER=valid.slice(); }
+  const ai=COL_ORDER.indexOf('applicant');
+  if(ai>-1){ COL_ORDER.splice(ai,1); const ii=COL_ORDER.indexOf('insured'); COL_ORDER.splice(ii<0?0:ii+1,0,'applicant'); }
+}
+function saveColOrder(){ localStorage.setItem(COL_ORDER_KEY, JSON.stringify(COL_ORDER)); }
+function renderTableHeader(){
+  const tr=document.getElementById('theadRow'); if(!tr) return;
+  tr.innerHTML=COL_ORDER.map(key=>{
+    const c=colByKey[key];
+    return `<th draggable="true" ondragstart="colDragStart(event,'${c.key}')" ondragover="colDragOver(event)" ondragleave="colDragLeave(event)" ondrop="colDrop(event,'${c.key}')" title="拖动⠿调整列顺序" style="cursor:grab;white-space:nowrap"><span style="opacity:.5;margin-right:5px">⠿</span>${c.label}</th>`;
+  }).join('');
+}
+let dragKey=null;
+function colDragStart(e,key){ dragKey=key; e.dataTransfer.effectAllowed='move'; try{e.dataTransfer.setData('text/plain',key);}catch(_){} }
+function colDragOver(e){ e.preventDefault(); e.dataTransfer.dropEffect='move'; e.currentTarget.style.outline='2px solid var(--accent)'; e.currentTarget.style.outlineOffset='-2px'; }
+function colDragLeave(e){ e.currentTarget.style.outline=''; }
+function colDrop(e,targetKey){
+  e.preventDefault(); e.currentTarget.style.outline='';
+  if(!dragKey||dragKey===targetKey) return;
+  const from=COL_ORDER.indexOf(dragKey), to=COL_ORDER.indexOf(targetKey);
+  if(from<0||to<0) return;
+  COL_ORDER.splice(from,1);
+  const idx=COL_ORDER.indexOf(targetKey);
+  COL_ORDER.splice(idx,0,dragKey);
+  saveColOrder(); renderTableHeader(); renderTable();
+}
+let rowDragId=null;
+function rowDragStart(e,id){ if(sortMode!=='manual')return; rowDragId=id; e.dataTransfer.effectAllowed='move'; try{e.dataTransfer.setData('text/plain',id);}catch(_){} e.currentTarget.style.opacity='0.45'; }
+function rowDragOver(e){ if(sortMode!=='manual')return; e.preventDefault(); e.dataTransfer.dropEffect='move'; e.currentTarget.style.outline='2px solid var(--accent)'; e.currentTarget.style.outlineOffset='-2px'; }
+function rowDragLeave(e){ e.currentTarget.style.outline=''; e.currentTarget.style.opacity=''; }
+function rowDrop(e,targetId){ e.preventDefault(); e.currentTarget.style.outline=''; e.currentTarget.style.opacity=''; if(sortMode!=='manual'||!rowDragId||rowDragId===targetId){rowDragId=null;return;} const from=rowOrder.indexOf(rowDragId),to=rowOrder.indexOf(targetId); if(from<0||to<0){rowDragId=null;return;} rowOrder.splice(from,1); const idx=rowOrder.indexOf(targetId); rowOrder.splice(idx,0,rowDragId); rowDragId=null; saveRowOrder(); renderTable(); }
+function initFilters(){
+  const ins=[...new Set(policies.map(p=>p.insured))].filter(Boolean).sort();
+  const cats=[...new Set(policies.map(p=>p.category))].filter(Boolean).sort();
+  const fi=document.getElementById('fInsured'), fc=document.getElementById('fCat');
+  ins.forEach(v=>fi.add(new Option(v,v)));
+  cats.forEach(v=>fc.add(new Option(v,v)));
+}
+function setSortMode(m){ sortMode=m; localStorage.setItem('familySortMode',m); renderTable(); }
+function getFiltered(){
+  const fi=document.getElementById('fInsured').value;
+  const fc=document.getElementById('fCat').value;
+  const fs=document.getElementById('fStatus').value;
+  const fq=document.getElementById('fSearch').value.trim().toLowerCase();
+  let list=policies.filter(p=>
+    (!fi||p.insured===fi)&&(!fc||p.category===fc)&&(!fs||p.status===fs)&&
+    (!fq||[p.policyNo,p.product,p.insurer,p.applicant,p.insured].join(' ').toLowerCase().includes(fq))
+  );
+  if(sortMode==='manual'){
+    const pos=id=>{const i=rowOrder.indexOf(id);return i<0?1e9:i;};
+    list.sort((a,b)=>pos(a.id)-pos(b.id));
+  } else if(sortMode==='addAsc'){
+    const pos=id=>policies.findIndex(p=>p.id===id);
+    list.sort((a,b)=>pos(a.id)-pos(b.id));
+  } else if(sortMode==='addDesc'){
+    const pos=id=>policies.findIndex(p=>p.id===id);
+    list.sort((a,b)=>pos(b.id)-pos(a.id));
+  } else if(sortMode==='name'){
+    list.sort((a,b)=>(a.insured||'').localeCompare(b.insured||'','zh'));
+  } else if(sortMode==='premiumDesc'){
+    list.sort((a,b)=>(+b.annualPremium||0)-(+a.annualPremium||0));
+  } else if(sortMode==='premiumAsc'){
+    list.sort((a,b)=>(+a.annualPremium||0)-(+b.annualPremium||0));
+  }
+  return list;
+}
+async function renderTable(){
+  const list=getFiltered();
+  for(const p of list){ p._hasFile=await hasFile(p.id); }
+  renderTableBody(list);
+  document.getElementById('cnt').textContent=policies.length;
+}
+function renderTableBody(list){
+  const tb=document.getElementById('tbody');
+  if(list.length===0){ tb.innerHTML=`<tr><td colspan="${COL_ORDER.length}" class="empty">没有匹配的保单</td></tr>`; return; }
+  const isManual=(sortMode==='manual');
+  tb.innerHTML=list.map(p=>{
+    const dragAttr=isManual?` draggable="true" ondragstart="rowDragStart(event,'${p.id}')" ondragover="rowDragOver(event)" ondragleave="rowDragLeave(event)" ondrop="rowDrop(event,'${p.id}')"`:'';
+    return `<tr${dragAttr}>`+COL_ORDER.map(k=>{
+      const c=colByKey[k];
+      const ea=c.edit?` ondblclick="editCell('${p.id}','${k}',this)"`:'';
+      const ta=c.align?` style="text-align:${c.align}"`:'';
+      return `<td${ea}${ta} class="${c.edit?'cell-edit':''}" title="${c.edit?'双击编辑':''}">${c.r(p)}</td>`;
+    }).join('')+'</tr>';
+  }).join('');
+}
+function editCell(id,key,td){
+  const p=policies.find(x=>x.id===id); if(!p||!td||td.querySelector('input,textarea')) return;
+  const cur=p[key]==null?'':String(p[key]);
+  const longField=(key==='amount'||key==='product');
+  const style='width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--accent);border-radius:6px;padding:5px;font-family:inherit;font-size:13px;box-sizing:border-box';
+  td.innerHTML = longField
+    ? `<textarea rows="2" style="${style}">${escapeHtml(cur)}</textarea>`
+    : `<input type="text" value="${escapeHtml(cur)}" style="${style}">`;
+  const el=td.querySelector('input,textarea');
+  el.focus(); try{ el.select(); }catch(_){}
+  let finished=false;
+  function commit(){
+    if(finished) return; finished=true;
+    let v=el.value;
+    if(key==='annualPremium'){ const n=parseFloat(v); v=(v===''||isNaN(n))?p.annualPremium:n; }
+    p[key]=v; savePolicies();
+    renderKPIs(); renderRenewStat(); renderCharts(); renderTable();
+  }
+  el.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){ e.preventDefault(); el.blur(); }
+    else if(e.key==='Escape'){ e.preventDefault(); finished=true; renderTable(); }
+  });
+  el.addEventListener('blur',commit);
+}
+
+/* ---------- 合同：上传 / 打开 ---------- */
+function uploadContract(id){
+  const inp=document.createElement('input'); inp.type='file';
+  inp.onchange=async()=>{
+    if(!inp.files[0]) return;
+    await saveFile(id, inp.files[0]);
+    renderTable();
+  };
+  inp.click();
+}
+function handleDrop(id,e){
+  e.preventDefault();
+  const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(!f) return;
+  saveFile(id,f).then(()=>renderTable());
+}
+async function openContract(id){
+  const f=await getFile(id);
+  if(!f){ alert('未找到合同文件，请先上传。'); return; }
+  const url=URL.createObjectURL(f);
+  window.open(url,'_blank');
+}
+function delContract(id){ if(confirm('确定删除该保单合同文件？删除后可重新上传。')){ delFile(id).then(()=>renderTable()); } }
+
+/* ---------- 添加 / 编辑 表单 ---------- */
+let editingId=null;
+function openForm(id){
+  editingId=id||null;
+  document.getElementById('formTitle').textContent=id?'编辑保单':'添加保单';
+  const p=id?policies.find(x=>x.id===id):{};
+  const set=(k,v)=>{const e=document.getElementById('i_'+k); if(e) e.value=v??'';};
+  ['policyNo','applicant','insured','insuredId','category','product','insurer','annualPremium','period','beneficiary','waitingPeriod','payMethod','payDate','payCard','remark','amount'].forEach(k=>set(k,p[k]));
+  document.getElementById('i_file').value='';
+  document.getElementById('mask').style.display='flex';
+}
+function closeForm(){ document.getElementById('mask').style.display='none'; }
+function saveForm(){
+  const g=k=>document.getElementById('i_'+k).value.trim();
+  const rec={
+    policyNo:g('policyNo'),applicant:g('applicant'),insured:g('insured'),insuredId:g('insuredId'),
+    category:g('category'),product:g('product'),insurer:g('insurer'),
+    annualPremium:g('annualPremium')?+g('annualPremium'):null,
+    period:g('period'),beneficiary:g('beneficiary'),
+    waitingPeriod:g('waitingPeriod')?+g('waitingPeriod'):null,
+    payMethod:g('payMethod'),payDate:g('payDate'),payCard:g('payCard'),remark:g('remark'),amount:g('amount')
+  };
+  const file=document.getElementById('i_file').files[0];
+  if(editingId){
+    const idx=policies.findIndex(x=>x.id===editingId);
+    policies[idx]={...policies[idx],...rec};
+  }else{
+    rec.id='p'+Date.now()+Math.floor(Math.random()*1000);
+    policies.push(rec); rowOrder.push(rec.id);
+  }
+  savePolicies();
+  if(file){ saveFile(rec.id||editingId, file); }
+  closeForm(); refreshAll();
+}
+function editRow(id){ openForm(id); }
+function delRow(id){ if(confirm('确定删除该保单？')){ policies=policies.filter(p=>p.id!==id); delFile(id); savePolicies(); loadRowOrder(); refreshAll(); } }
+
+/* ---------- 导入 / 导出 ---------- */
+function exportData(){
+  const blob=new Blob([JSON.stringify(policies,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='家庭保单备份.json'; a.click();
+}
+function importData(input){
+  const f=input.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{
+      const data=JSON.parse(rd.result);
+      if(Array.isArray(data)){ data.forEach((p,i)=>{ if(!p.id) p.id='p'+Date.now()+i; }); policies=data; savePolicies(); loadRowOrder(); refreshAll(); alert('导入成功：'+data.length+' 条'); }
+    }catch(e){
+      // 尝试 CSV
+      const text=rd.result; const rows=parseCSV(text);
+      if(rows.length){ policies=rows.map((r,i)=>({id:'p'+Date.now()+i,...r})); savePolicies(); loadRowOrder(); refreshAll(); alert('CSV 导入成功：'+rows.length+' 条'); }
+      else alert('无法解析文件，请使用本看板导出的 JSON 或标准 CSV。');
+    }
+    input.value='';
+  };
+  rd.readAsText(f);
+}
+function parseCSV(text){
+  const lines=text.split(/\r?\n/).filter(l=>l.trim()); if(lines.length<2) return [];
+  const head=lines[0].split(',').map(h=>h.trim());
+  return lines.slice(1).map(l=>{ const c=l.split(','); const o={}; head.forEach((h,i)=>o[h]=c[i]?c[i].trim():''); if(o.annualPremium) o.annualPremium=+o.annualPremium; return o; });
+}
+
+/* ---------- 待办事项（本地存储） ---------- */
+const TODO_KEY='familyTodos';
+const TODO_SEED=['受益人没有明确写明的，要联系保险公司进行调整'];
+let todos=[];
+function loadTodos(){
+  const raw=localStorage.getItem(TODO_KEY);
+  if(raw){ try{ todos=JSON.parse(raw); }catch(e){ todos=[]; } }
+  if(!todos || !Array.isArray(todos) || todos.length===0){ todos=TODO_SEED.map((t,i)=>({id:'t'+(i+1),text:t,done:false})); saveTodos(); }
+}
+function saveTodos(){ localStorage.setItem(TODO_KEY, JSON.stringify(todos)); }
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function addTodo(text){
+  text=(text||'').trim(); if(!text) return;
+  todos.push({id:'t'+Date.now()+Math.floor(Math.random()*1000),text,done:false});
+  saveTodos(); renderTodos();
+}
+function addTodoFromInput(){
+  const el=document.getElementById('todoInput');
+  addTodo(el.value); el.value='';
+}
+function delTodo(id){ todos=todos.filter(t=>t.id!==id); saveTodos(); renderTodos(); }
+function toggleTodo(id){ const t=todos.find(x=>x.id===id); if(t){ t.done=!t.done; saveTodos(); renderTodos(); } }
+function renderTodos(){
+  const ul=document.getElementById('todoList'); if(!ul) return;
+  if(todos.length===0){ ul.innerHTML='<li class="empty" style="padding:14px">暂无待办，添加一条吧</li>'; return; }
+  ul.innerHTML=todos.map(t=>`
+    <li style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <input type="checkbox" ${t.done?'checked':''} onchange="toggleTodo('${t.id}')" style="width:16px;height:16px;accent-color:var(--accent)">
+      <span style="flex:1;${t.done?'text-decoration:line-through;color:var(--muted)':''}">${escapeHtml(t.text)}</span>
+      <button class="mini up" onclick="delTodo('${t.id}')">✕ 删除</button>
+    </li>`).join('');
+}
+
+/* ---------- 数据分析：费率/缴费趋势（按险种） ---------- */
+const DATA_ANALYTICS_KEY='familyAnalytics';
+const ANALYTICS_SEED={
+  types:{
+    '百万医疗险':{ years:[2024,2025], rows:{ '示例被保人甲':{2024:1356,2025:1841}, '示例被保人乙':{2024:null,2025:219}, '示例投保人乙':{2024:287,2025:null} } }
+  }
+};
+let analytics=null;
+let analyticsCurType='百万医疗险';
+function curRateType(){ if(!analytics.types[analyticsCurType]) analytics.types[analyticsCurType]={years:[],rows:{}}; return analytics.types[analyticsCurType]; }
+function loadAnalytics(){
+  const raw=localStorage.getItem(DATA_ANALYTICS_KEY);
+  if(raw){ try{ analytics=JSON.parse(raw); }catch(e){ analytics=null; } }
+  if(!analytics || !analytics.types || typeof analytics.types!=='object'){ analytics=JSON.parse(JSON.stringify(ANALYTICS_SEED)); saveAnalytics(); }
+  if(!analytics.types[analyticsCurType]){ analyticsCurType=Object.keys(analytics.types)[0]||'百万医疗险'; }
+}
+function saveAnalytics(){ localStorage.setItem(DATA_ANALYTICS_KEY, JSON.stringify(analytics)); }
+function renderRateShell(){
+  const sel=document.getElementById('rateType'); if(!sel) return;
+  sel.innerHTML=Object.keys(analytics.types).map(t=>`<option value="${escapeHtml(t)}" ${t===analyticsCurType?'selected':''}>${escapeHtml(t)}</option>`).join('');
+}
+function switchRateType(t){ analyticsCurType=t; saveAnalytics(); renderRateShell(); renderRateTable(); renderRateChart(); renderRateYoY(); }
+function addRateType(){
+  const name=prompt('新增险种名称（如：定期寿险、重疾险）：'); if(!name) return;
+  const t=name.trim(); if(!t) return;
+  if(analytics.types[t]){ alert('该险种已存在'); return; }
+  const yr=new Date().getFullYear();
+  const rows={}; [...new Set(policies.map(p=>p.insured))].filter(Boolean).forEach(n=>{ rows[n]={}; rows[n][yr]=null; });
+  analytics.types[t]={years:[yr],rows};
+  analyticsCurType=t; saveAnalytics(); renderRateShell(); renderRateTable(); renderRateChart(); renderRateYoY();
+}
+function renderRateTable(){
+  const tbl=document.getElementById('rateTable'); if(!tbl) return;
+  const t=curRateType(); const years=t.years, people=Object.keys(t.rows);
+  if(!people.length){ tbl.innerHTML='<tbody><tr><td class="empty">暂无被保人，点「+ 新增被保人」添加</td></tr></tbody>'; return; }
+  // 表头：每个年度占两列（缴费额 | 增长率）
+  let html='<thead><tr><th rowspan="2" style="vertical-align:middle">被保人＼年度</th>'+years.map(y=>`<th colspan="2">${y}年</th>`).join('')+'</tr><tr>';
+  html+=years.map(()=>'<th style="font-weight:500;color:var(--muted)">缴费额</th><th style="font-weight:500;color:var(--muted)">增长率</th>').join('')+'</tr></thead><tbody>';
+  html+=people.map(p=>{
+    const row=t.rows[p];
+    const cells=years.map((y,i)=>{
+      const v=row[y]; const disp=(v==null||v==='')?'':v;
+      let rateHtml='<td style="padding:8px 10px;color:var(--muted);font-size:13px;text-align:center">—</td>';
+      if(i>0){
+        const prev=row[years[i-1]];
+        if(v!=null && prev!=null && prev!==0){
+          const diff=v-prev;
+          const pct=(diff/prev)*100;
+          const up=pct>0, down=pct<0;
+          const color=up?'var(--danger)':(down?'var(--ok)':'var(--muted)');
+          const sign=pct>0?'▲ +':(pct<0?'▼ ':'');
+          rateHtml=`<td style="padding:8px 10px;text-align:center"><div style="color:${color};font-weight:700">${sign}${pct.toFixed(1)}%</div><div style="color:var(--muted);font-size:11px">${diff>0?'+':''}${fmtY(diff)}</div></td>`;
+        } else {
+          rateHtml='<td style="padding:8px 10px;color:var(--muted);font-size:12px;text-align:center">无对比</td>';
+        }
+      }
+      return `<td style="padding:8px 10px"><input type="number" value="${disp}" data-p="${escapeHtml(p)}" data-y="${y}" onchange="setRateCell('${escapeHtml(p)}',${y},this.value)" style="width:88px;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px;font-family:inherit;font-size:13px"></td>`+rateHtml;
+    }).join('');
+    return `<tr><td style="font-weight:600;white-space:nowrap;padding:8px 10px;vertical-align:middle">${escapeHtml(p)}</td>${cells}</tr>`;
+  }).join('');
+  html+='</tbody>';
+  tbl.innerHTML=html;
+}
+function setRateCell(p,y,val){
+  const n=parseFloat(val); const t=curRateType();
+  if(!t.rows[p]) t.rows[p]={};
+  t.rows[p][y]=(val===''||isNaN(n))?null:n;
+  saveAnalytics(); renderRateTable(); renderRateChart(); renderRateYoY();
+}
+function addRateYear(){
+  const t=curRateType(); const next=(t.years[t.years.length-1]||(new Date().getFullYear()-1))+1;
+  if(t.years.includes(next)){ alert(next+' 年已存在'); return; }
+  t.years.push(next); Object.keys(t.rows).forEach(p=>{ t.rows[p][next]=null; });
+  saveAnalytics(); renderRateTable(); renderRateChart(); renderRateYoY();
+}
+function addRatePerson(){
+  const t=curRateType(); const name=prompt('新增被保人姓名：'); if(!name) return;
+  const p=name.trim(); if(!p) return;
+  if(t.rows[p]){ alert('该被保人已存在'); return; }
+  t.rows[p]={}; t.years.forEach(y=>{ t.rows[p][y]=null; });
+  saveAnalytics(); renderRateTable(); renderRateChart(); renderRateYoY();
+}
+function resetRateType(){
+  if(!confirm('清空当前险种「'+analyticsCurType+'」的录入数据，恢复初始示例？')) return;
+  if(ANALYTICS_SEED.types[analyticsCurType]){ analytics.types[analyticsCurType]=JSON.parse(JSON.stringify(ANALYTICS_SEED.types[analyticsCurType])); }
+  else { const yr=new Date().getFullYear(); analytics.types[analyticsCurType]={years:[yr],rows:{}}; }
+  saveAnalytics(); renderRateShell(); renderRateTable(); renderRateChart(); renderRateYoY();
+}
+function renderRateYoY(){
+  const el=document.getElementById('rateYoY'); if(!el) return;
+  const t=curRateType(); const years=t.years, people=Object.keys(t.rows);
+  if(years.length<2){ el.innerHTML='<div class="hint" style="margin-top:14px">至少两个年度才能计算涨幅。</div>'; return; }
+  let html='<h4 style="margin:18px 0 10px;font-size:13.5px;color:var(--muted)">费率年度涨幅（YoY · 相对上一年）</h4>';
+  html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px">';
+  people.forEach(p=>{
+    const row=t.rows[p];
+    const items=years.map((y,i)=>{
+      if(i===0) return null;
+      const cur=row[y], prev=row[years[i-1]];
+      if(cur==null||prev==null) return `<div style="font-size:12.5px;color:var(--muted)">${y}年：无对比数据</div>`;
+      const pct=(cur-prev)/prev*100;
+      const up=pct>0, down=pct<0;
+      const color=up?'var(--danger)':(down?'var(--ok)':'var(--muted)');
+      const sign=pct>0?'▲ +':(pct<0?'▼ ':'');
+      return `<div style="font-size:12.5px">${y}年：<b style="color:${color}">${sign}${pct.toFixed(1)}%</b> <span style="color:var(--muted)">（${fmtY(prev)}→${fmtY(cur)}）</span></div>`;
+    }).filter(Boolean);
+    html+=`<div class="card" style="padding:12px;box-shadow:none;background:var(--panel2)"><div style="font-weight:600;margin-bottom:6px">${escapeHtml(p)}</div>${items.join('')}</div>`;
+  });
+  html+='</div>';
+  el.innerHTML=html;
+}
+function renderRateChart(){
+  const el=document.getElementById('rateChart'); if(!el) return;
+  const t=curRateType(); const years=t.years, people=Object.keys(t.rows);
+  const allVals=[]; people.forEach(p=>years.forEach(y=>{const v=t.rows[p][y]; if(v!=null)allVals.push(v);}));
+  if(!allVals.length){ el.innerHTML='<div class="empty">暂无数据</div>'; return; }
+  const W=680,H=260,padL=48,padR=16,padT=16,padB=34;
+  const maxV=Math.max(...allVals,1);
+  const x=i=>padL+(years.length<=1?0:(W-padL-padR)*i/(years.length-1));
+  const yf=v=>padT+(H-padT-padB)*(1-(v-0)/(maxV-0||1));
+  const colors=['#4ea1ff','#34d399','#f59e0b','#a78bfa','#f472b6'];
+  let paths='',dots='',leg='';
+  people.forEach((p,pi)=>{
+    const c=colors[pi%colors.length], row=t.rows[p];
+    let d='',pts=[];
+    years.forEach((yr,i)=>{ const v=row[yr]; if(v==null) return; const px=x(i),py=yf(v); pts.push([px,py]); d+=(d===''?'M':'L')+px.toFixed(1)+' '+py.toFixed(1)+' '; });
+    if(pts.length){ paths+=`<path d="${d}" fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round"/>`; pts.forEach(pt=>{ dots+=`<circle cx="${pt[0].toFixed(1)}" cy="${pt[1].toFixed(1)}" r="3.6" fill="${c}"/>`; }); }
+    leg+=`<span><i class="dot" style="background:${c}"></i>${escapeHtml(p)}</span>`;
+  });
+  let grid=''; for(let g=0;g<=4;g++){ const val=maxV*g/4, gy=yf(val); grid+=`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W-padR}" y2="${gy.toFixed(1)}" stroke="#222a33" stroke-width="1"/><text x="${padL-6}" y="${(gy+3).toFixed(1)}" text-anchor="end" fill="#8b97a6" font-size="10">${Math.round(val)}</text>`; }
+  let xlab=years.map((yr,i)=>`<text x="${x(i).toFixed(1)}" y="${H-12}" text-anchor="middle" fill="#8b97a6" font-size="11">${yr}</text>`).join('');
+  el.innerHTML=`<svg width="100%" viewBox="0 0 ${W} ${H}" style="max-width:${W}px">${grid}${paths}${dots}${xlab}</svg><div class="legend" style="margin-top:6px">${leg}</div>`;
+}
+
+/* ---------- 续保主动提醒 ---------- */
+function renderReminder(){
+  const el=document.getElementById('renewBanner'); if(!el) return;
+  const due=policies.filter(p=>p.status==='expired');
+  const soon=policies.filter(p=>p.status==='soon');
+  if(!due.length && !soon.length){ el.innerHTML=''; return; }
+  const list=[...due,...soon].map(p=>`<li style="margin:2px 0">${escapeHtml(p.insured)} · ${escapeHtml(p.category)} · <b>${p.statusText}</b>${p.endDate?'（'+endLabel(p)+'）':''}</li>`).join('');
+  const notifyOn=localStorage.getItem('familyNotify')==='1';
+  const btn=notifyOn
+    ? `<button onclick="disableNotify()">🔔 桌面提醒已开启（点此关闭）</button>`
+    : `<button class="primary" onclick="enableNotify()">🔔 开启到期桌面提醒</button>`;
+  el.innerHTML=`<div style="border:1px solid ${due.length?'#5a1f1f':'#5a431a'};background:${due.length?'#2a1414':'#241c0e'};border-radius:12px;padding:14px 16px;margin-bottom:18px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="font-weight:600;color:${due.length?'#ff9a9a':'#ffd27a'}">⚠ 续保提醒：${due.length} 份已到期（脱保风险）｜${soon.length} 份 30 天内到期</div>
+      ${btn}
+    </div>
+    <ul style="margin:10px 0 0;padding-left:18px;color:var(--muted);font-size:13px">${list}</ul>
+  </div>`;
+  if(notifyOn && 'Notification' in window && Notification.permission==='granted' && (due.length||soon.length)){
+    try{ new Notification('家庭保单续保提醒',{body:`${due.length} 份已到期，${soon.length} 份即将到期`}); }catch(e){}
+  }
+}
+function enableNotify(){
+  if(!('Notification' in window)){ alert('当前浏览器不支持桌面通知，已用页面内横幅提醒替代。'); return; }
+  Notification.requestPermission().then(p=>{
+    if(p==='granted'){ localStorage.setItem('familyNotify','1'); renderReminder(); try{ new Notification('家庭保单提醒',{body:'已开启，临近到期将主动提醒'}); }catch(e){} }
+    else { alert('未授权桌面通知，仍保留页面内横幅提醒。'); }
+  });
+}
+function disableNotify(){ localStorage.removeItem('familyNotify'); renderReminder(); }
+
+/* ---------- 汇总刷新 ---------- */
+function refreshAll(){ enrich(); renderKPIs(); renderRenewStat(); renderCharts(); initFilters(); renderTableHeader(); renderTable(); renderReminder(); }
+
+/* ---------- 启动 ---------- */
+(async function(){
+  await openDB();
+  loadPolicies();
+  const sm=localStorage.getItem('familySortMode'); if(sm) sortMode=sm;
+  const sel=document.getElementById('sortMode'); if(sel) sel.value=sortMode;
+  loadTodos();
+  loadColOrder();
+  loadAnalytics();
+  refreshAll();
+  renderTodos();
+  renderRateShell(); renderRateTable(); renderRateChart(); renderRateYoY();
+})();
+</script>
+</body>
+</html>
