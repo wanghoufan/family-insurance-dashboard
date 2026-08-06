@@ -85,7 +85,8 @@
   <div class="actions">
     <button class="primary" onclick="openForm()">+ 添加保单</button>
     <button onclick="document.getElementById('importFile').click()">导入</button>
-    <button onclick="exportData()">导出</button>
+    <button onclick="exportData()">导出 JSON</button>
+    <button onclick="exportExcel()">导出 Excel</button>
     <input type="file" id="importFile" accept=".json,.csv" style="display:none" onchange="importData(this)">
   </div>
 </header>
@@ -139,6 +140,7 @@
         <option value="premiumDesc">当年缴费额度·从高到低</option>
         <option value="premiumAsc">当年缴费额度·从低到高</option>
       </select>
+      <label class="ck" title="修改 被保人/投保人/险种/产品名称/保险公司 时，所有相同名称的记录一起改"><input type="checkbox" id="syncNames" checked> 修改时同步同名记录</label>
     </div>
     <div style="overflow-x:auto;">
       <table id="tbl">
@@ -448,6 +450,9 @@ const COLUMNS=[
   {key:'actions',label:'操作',sort:false,r:p=>`<button class="mini open" onmousedown="event.stopPropagation()" onclick="editRow('${p.id}')">✎ 编辑</button><button class="mini del" onmousedown="event.stopPropagation()" onclick="delRow('${p.id}')">🗑 删除</button>`}
 ];
 const colByKey={}; COLUMNS.forEach(c=>colByKey[c.key]=c);
+/* 修改时同步的字段：被保险人 / 投保人 / 险种 / 产品名称 / 保险公司 */
+const SYNC_FIELDS=['insured','applicant','category','product','insurer'];
+function valOf(p,key){ return p[key]==null?'':String(p[key]); }
 const COL_ORDER_KEY='familyColOrder';
 let COL_ORDER=[];
 function loadColOrder(){
@@ -559,8 +564,19 @@ function editCell(id,key,td){
     if(finished) return; finished=true;
     let v=el.value;
     if(key==='annualPremium'){ const n=parseFloat(v); v=(v===''||isNaN(n))?p.annualPremium:n; }
-    p[key]=v; savePolicies();
+    const oldVal=valOf(p,key);
+    p[key]=v;
+    const nv=valOf(p,key);
+    let synced=0;
+    if(SYNC_FIELDS.includes(key)){
+      const cb=document.getElementById('syncNames');
+      if(cb&&cb.checked && oldVal!==nv){
+        policies.forEach(q=>{ if(q!==p && valOf(q,key)===oldVal){ q[key]=nv; synced++; } });
+      }
+    }
+    savePolicies();
     renderKPIs(); renderRenewStat(); renderCharts(); renderTable();
+    if(synced>0) toast(`已同步更新 ${synced} 条相同「${colByKey[key].label}」记录`);
   }
   el.addEventListener('keydown',e=>{
     if(e.key==='Enter'){ e.preventDefault(); el.blur(); }
@@ -618,7 +634,19 @@ function saveForm(){
   const file=document.getElementById('i_file').files[0];
   if(editingId){
     const idx=policies.findIndex(x=>x.id===editingId);
+    const oldP=policies[idx];
+    let synced=0;
+    const cb=document.getElementById('syncNames');
+    if(cb&&cb.checked){
+      SYNC_FIELDS.forEach(key=>{
+        const oldVal=valOf(oldP,key), newVal=valOf(rec,key);
+        if(oldVal!==newVal){
+          policies.forEach(q=>{ if(q!==oldP && valOf(q,key)===oldVal){ q[key]=newVal; synced++; } });
+        }
+      });
+    }
     policies[idx]={...policies[idx],...rec};
+    if(synced>0) toast(`已同步更新 ${synced} 条同名记录`);
   }else{
     rec.id='p'+Date.now()+Math.floor(Math.random()*1000);
     policies.push(rec); rowOrder.push(rec.id);
@@ -634,6 +662,27 @@ function delRow(id){ if(confirm('确定删除该保单？')){ policies=policies.
 function exportData(){
   const blob=new Blob([JSON.stringify(policies,null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='家庭保单备份.json'; a.click();
+}
+/* 导出 Excel（.xls，离线、无 CDN）：采用当前明细表列顺序与列名，仅导出数据列（不含「合同」「操作」按钮列） */
+function exportExcel(){
+  const keys=COL_ORDER.filter(k=>k!=='file'&&k!=='actions');
+  const cols=keys.map(k=>colByKey[k]).filter(Boolean);
+  const head=cols.map(c=>`<th>${escapeHtml(c.label)}</th>`).join('');
+  const rows=policies.map(p=>'<tr>'+cols.map(c=>{
+    const v = c.key==='status' ? (p.statusText||'') : valOf(p,c.key);
+    return `<td>${escapeHtml(String(v))}</td>`;
+  }).join('')+'</tr>').join('');
+  const html='<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"><style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px 8px;white-space:nowrap}th{background:#eef3fb;font-weight:bold}</style></head><body><table border="1">'+('<thead><tr>'+head+'</tr></thead>')+'<tbody>'+rows+'</tbody></table></body></html>';
+  const blob=new Blob(['\ufeff'+html],{type:'application/vnd.ms-excel;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='家庭保单明细表.xls'; a.click();
+}
+/* 轻量提示 */
+let _toastT=null;
+function toast(msg){
+  let el=document.getElementById('toast');
+  if(!el){ el=document.createElement('div'); el.id='toast'; el.style.cssText='position:fixed;left:50%;top:18px;transform:translateX(-50%);background:var(--accent,#4ea1ff);color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.3);opacity:0;transition:opacity .25s;pointer-events:none'; document.body.appendChild(el); }
+  el.textContent=msg; el.style.opacity='1';
+  clearTimeout(_toastT); _toastT=setTimeout(()=>{ el.style.opacity='0'; },2200);
 }
 function importData(input){
   const f=input.files[0]; if(!f) return;
