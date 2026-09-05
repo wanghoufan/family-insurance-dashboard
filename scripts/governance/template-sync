@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+"""
+INTERNAL-ONLY shared Governance Template Version/Manifest writer.
+
+Promotion Gateway owns the broad transaction lock and calls this helper with
+a scoped one-shot capability. Other trusted maintenance callers may call it
+with a capability and let this helper acquire the Template Promotion Lock.
+Direct Agent invocation is denied.
+"""
+import argparse, hashlib, json, os, re, sys
+from datetime import datetime, timezone
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from lock_utils import FileLock, atomic_write_json
+from internal_capability import verify_and_consume
+
+EXCLUDED={
+ 'docs/governance/TEMPLATE_MANIFEST.json',
+ 'docs/governance/PROJECT_GOVERNANCE_ORIGIN.template.yaml',
+ 'docs/governance/PROJECT_GOVERNANCE_APPLIED.template.yaml',
+ # Machine-local evidence is intentionally mutable.  Tracking it makes a
+ # health check invalidate the source template it is supposed to inspect.
+ 'docs/runtime/macos-runtime-health.json'
+}
+
+def h(path):
+    x=hashlib.sha256()
+    with open(path,'rb') as f:
+        for c in iter(lambda:f.read(65536),b''): x.update(c)
+    return x.hexdigest()
+
+def bump(v):
+    m=re.fullmatch(r'(.+-template\.)(\d+)',str(v))
+    if not m: raise ValueError('unsupported template version '+str(v))
+    return m.group(1)+str(int(m.group(2))+1)
+
+def build_manifest(root,version):
+    files=[]
+    for dp,dirs,fns in os.walk(root):
+        dirs[:]=[d for d in dirs if d!='__pycache__']
+        for fn in sorted(fns):
+            p=os.path.join(dp,fn); rel=os.path.relpath(p,root).replace('\\','/')
+            if rel in EXCLUDED or fn.endswith('.lock') or fn.endswith('.pyc') or '.tmp.' in fn:
+                continue
+            files.append({'path':rel,'size':os.path.getsize(p),'sha256':h(p)})
+    files=sorted(files,key=lambda x:x['path'])
+    canonical=json.dumps(files,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()
+    fingerprint=hashlib.sha256(canonical).hexdigest()
+    return {
+      'schema_version':'4','authoritative':True,'template_version':version,
+      'generated_at':datetime.now(timezone.utc).isoformat(),
+      'fingerprint_algorithm':'sha256(sorted path,size,sha256)',
+      'template_fingerprint':fingerprint,
+      'excluded_from_fingerprint':sorted(EXCLUDED),
+      'files':files
+    }
+
+def perform(root,promotion_id,initialize,delivery_version):
+    gp=os.path.join(root,'docs','governance')
+    vp=os.path.join(gp,'TEMPLATE_VERSION.yaml'); mp=os.path.join(gp,'TEMPLATE_MANIFEST.json')
+    with FileLock(os.path.join(gp,'.template-sync.lock'),'template-sync',timeout=10,stale_after=30):
+        v=json.load(open(vp,encoding='utf-8'))
+        if not initialize:
+            v['template_version']=bump(v['template_version'])
+        if delivery_version:
+            v['delivery_version']=delivery_version
+        v['last_promotion_id']=promotion_id
+        v['updated_at']=datetime.now(timezone.utc).isoformat()
+        atomic_write_json(vp,v)
+        m=build_manifest(root,v['template_version'])
+        atomic_write_json(mp,m)
+    return {
+      'template_version':v['template_version'],
+      'delivery_version':v.get('delivery_version'),
+      'last_promotion_id':v.get('last_promotion_id'),
+      'template_fingerprint':m['template_fingerprint'],
+      'template_manifest_hash':h(mp)
+    }
+
+def main():
+    ap=argparse.ArgumentParser()
+    ap.add_argument('--template-root',required=True)
+    ap.add_argument('--promotion-id')
+    ap.add_argument('--initialize',action='store_true')
+    ap.add_argument('--delivery-version')
+    ap.add_argument('--caller-holds-template-lock',action='store_true')
+    ap.add_argument('--internal-token',required=True)
+    a=ap.parse_args()
+    root=os.path.abspath(a.template_root)
+
+    claims={
+      'template_root':root,
+      'promotion_id':a.promotion_id,
+      'initialize':bool(a.initialize),
+      'caller_holds_template_lock':bool(a.caller_holds_template_lock),
+      'delivery_version':a.delivery_version
+    }
+    try:
+        verify_and_consume(root,a.internal_token,'TEMPLATE_SYNC',claims)
+    except Exception as e:
+        raise SystemExit('DENY: internal template-sync capability invalid: '+str(e))
+
+    if a.caller_holds_template_lock:
+        out=perform(root,a.promotion_id,a.initialize,a.delivery_version)
+    else:
+        lock=os.path.join(root,'docs','governance','.template-promotion.lock')
+        with FileLock(lock,'template-sync-transaction',timeout=20,stale_after=60):
+            out=perform(root,a.promotion_id,a.initialize,a.delivery_version)
+    print(json.dumps(out,ensure_ascii=False))
+
+if __name__=='__main__':
+    main()

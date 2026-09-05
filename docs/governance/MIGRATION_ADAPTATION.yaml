@@ -1,0 +1,40 @@
+{
+  "schema_version": "1",
+  "migration_id": "pilot-c-family-insurance-dashboard-20260829",
+  "mode": "hybrid_non_destructive",
+  "template_version": "2.3.1-template.23",
+  "preserved_project_authority": [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "docs/roles/",
+    "prompts/",
+    "docs/pm/",
+    "docs/qa/",
+    "docs/review/",
+    "docs/handoff/"
+  ],
+  "preserved_product_paths": [
+    "src/",
+    "assets/",
+    "README.md",
+    ".gitignore"
+  ],
+  "template_components_added": [
+    "docs/governance/",
+    "docs/workflow/",
+    "docs/model/",
+    "docs/learning/",
+    "scripts/",
+    "tests/governance/",
+    "skills/"
+  ],
+  "prohibited_data_actions": [
+    "read_browser_localStorage",
+    "read_browser_indexedDB",
+    "export_real_policy_data",
+    "upload_real_policy_data",
+    "write_browser_policy_data"
+  ],
+  "validation_scope": "governance_contracts_and_desensitized_browser_smoke_only",
+  "status": "IMPLEMENTED_PENDING_RUNTIME_VERIFICATION"
+}

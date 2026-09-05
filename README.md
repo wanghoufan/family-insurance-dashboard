@@ -32,22 +32,28 @@
 这是一个**单文件 HTML**，零依赖、零构建、不联网。三种方式任选：
 
 1. **直接打开**（最简单）
-   双击 `family-insurance-dashboard.html`，用任意现代浏览器打开即可。
+   双击 `src/family-insurance-dashboard.html`，用任意现代浏览器打开即可。
 
 2. **从 GitHub 拉取后打开**
    ```bash
    git clone https://github.com/wanghoufan/family-insurance-dashboard.git
-   # 进入目录，双击 family-insurance-dashboard.html 用浏览器打开
+   # 进入目录，双击 src/family-insurance-dashboard.html 用浏览器打开
    ```
 
 3. **本地静态服务器**（可选，部分浏览器对 `file://` 限制更严时可用）
    ```bash
-   cd family-insurance-dashboard
+   cd family-insurance-dashboard/src
    python -m http.server 8000
    # 浏览器访问 http://localhost:8000/family-insurance-dashboard.html
    ```
 
 > 注意：仓库里只有**脱敏示例数据**。第一次打开看到的是示例，恢复你自己的数据见下方「备份与恢复」。
+
+4. **Docker 自托管**（遵循《Mac Mini 本地项目自托管 Docker 规范 V1.1》）
+   - `project_slug`：`family-insurance-dashboard`；宿主机端口默认 `3200`（避开 3100 / 3001 / 8081）
+   - 仓库内最低产物：`Dockerfile`（nginx:alpine 静态托管）、`compose.yaml`、`.dockerignore`、`docker/env.template`
+   - 正式部署副本位于 `~/Developer/coding/docker/family-insurance-dashboard/`（业务仓库 git 克隆 + 私有 `.env.local`，由 `deploy.sh` 同步），不在本目录直接运行生产容器
+   - 本应用数据只存在用户浏览器（localStorage / IndexedDB）；容器**无状态**——无 Named Volume、无 DockerData 挂载；身份证号与合同附件永不上传云端
 
 ---
 
@@ -82,8 +88,8 @@
 
 ### 保单数据（推荐）
 - **备份（JSON）**：看板内点「导出 JSON」→ 下载 `家庭保单备份.json`
-- **备份（Excel）**：看板内点「导出 Excel」→ 下载 `家庭保单明细表.xls`（采用当前明细表列顺序与列名，不含「合同 / 操作」按钮列，方便传播、打印和二次填写；离线生成，无需联网）
-- **恢复**：看板内点「导入」→ 选择该 JSON → 数据被覆盖恢复（暂不支持直接导入 xls）
+- **导出 Excel**：看板内点「导出 Excel」→ 下载 `家庭保单明细表.xls`（按用户桌面模板 15 列生成当前真实数据，含状态列；空数据时附一行脱敏示例，导入时自动跳过；离线生成，无需联网）
+- **恢复 / 导入**：看板内点「导入」→ 选择 `家庭保单备份.json` 覆盖恢复保单字段；也可导入本看板导出的 `家庭保单明细表.xls`、旧版空白模板（`.xls`）或标准 CSV——列名自动归一化映射（兼容「（可选填）」括注与旧模板的 ss:Index 稀疏列）；导入 JSON/表格会**覆盖**当前数据，请先导出备份。任意 xls/`.xlsx` 不能直接当备份导入
 - 适用范围：换机器、清浏览器、重装后恢复保单字段
 
 ### 批量修改同名记录

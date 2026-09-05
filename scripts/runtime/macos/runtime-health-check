@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+import json, os, re, subprocess, sys
+from datetime import datetime, timezone
+sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
+from common import require_macos,which,run,load_config,repo_root_from_here
+
+def version(cmd):
+    for args in ([cmd,'--version'],[cmd,'version']):
+        try:
+            out=run(args,timeout=10)
+            return out.strip().splitlines()[0][:200]
+        except Exception:
+            pass
+    return None
+
+def help_output(argv):
+    """CLI help may deliberately render to stderr even on a zero exit."""
+    r=subprocess.run(argv,text=True,capture_output=True,timeout=10)
+    if r.returncode!=0:
+        raise RuntimeError(f'command failed {argv!r}: {r.stderr.strip() or r.stdout.strip()}')
+    return r.stdout+r.stderr
+
+def main():
+    root=repo_root_from_here(); cfg=load_config()
+    result={'runtime_id':'MAC_RUNTIME_V1','checked_at':datetime.now(timezone.utc).isoformat(),'status':'UNVERIFIED','checks':{}}
+    try: require_macos(); result['checks']['platform']={'result':'PASS','value':sys.platform}
+    except Exception as e:
+        result['checks']['platform']={'result':'BLOCKED','detail':str(e)}
+        print(json.dumps(result,ensure_ascii=False,indent=2)); return 2
+    try:
+        orca=which(cfg['executables']['orca']); result['checks']['orca_executable']={'result':'PASS','path':orca,'version':version(orca)}
+        st=run([orca,'status','--json'],timeout=15,expect_json=True)
+        result['checks']['orca_status']={'result':'PASS','summary':st}
+        guide=run([orca,'skills','get','orchestration','--full'],timeout=20)
+        required=cfg['orchestration']['required_commands']
+        missing=[x for x in required if x not in guide]
+        result['checks']['orca_orchestration_guide']={'result':'PASS' if not missing else 'FAIL','missing':missing}
+    except Exception as e:
+        result['checks']['orca']={'result':'FAIL','detail':str(e)}
+
+    try:
+        oc=which(cfg['executables']['opencode'])
+        # `--auto` is a non-interactive run option in current OpenCode releases,
+        # rather than a top-level CLI option.  Check the command surface that
+        # the runtime adapters actually invoke.
+        helptext=help_output([oc,'run','--help'])
+        result['checks']['opencode']={'result':'PASS' if '--auto' in helptext else 'FAIL','path':oc,'version':version(oc),'auto_flag':'--auto' in helptext,'checked_command':'opencode run --help'}
+    except Exception as e: result['checks']['opencode']={'result':'FAIL','detail':str(e)}
+
+    try:
+        cx=which(cfg['executables']['codex']); helptext=help_output([cx,'--help'])
+        result['checks']['codex']={
+          'result':'PASS' if ('--sandbox' in helptext and '--ask-for-approval' in helptext) else 'FAIL',
+          'path':cx,'version':version(cx),
+          'sandbox_flag':'--sandbox' in helptext,'approval_flag':'--ask-for-approval' in helptext
+        }
+    except Exception as e: result['checks']['codex']={'result':'FAIL','detail':str(e)}
+
+    ok=all(v.get('result')=='PASS' for v in result['checks'].values())
+    result['status']='HEALTHY_UNVERIFIED' if ok else 'DEGRADED'
+    out=os.path.join(root,'docs','runtime','macos-runtime-health.json')
+    with open(out,'w',encoding='utf-8') as f: json.dump(result,f,ensure_ascii=False,indent=2); f.write('\n')
+    print(json.dumps(result,ensure_ascii=False,indent=2))
+    return 0 if ok else 3
+if __name__=='__main__': raise SystemExit(main())

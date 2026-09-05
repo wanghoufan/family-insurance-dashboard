@@ -1,0 +1,124 @@
+{
+  "runtime_id": "MAC_RUNTIME_V1",
+  "checked_at": "2026-08-29T09:04:01.571287+00:00",
+  "status": "DEGRADED",
+  "checks": {
+    "platform": {
+      "result": "PASS",
+      "value": "darwin"
+    },
+    "orca_executable": {
+      "result": "PASS",
+      "path": "/opt/homebrew/bin/orca",
+      "version": "orca"
+    },
+    "orca_status": {
+      "result": "PASS",
+      "summary": {
+        "id": "local-status",
+        "ok": true,
+        "result": {
+          "target": {
+            "kind": "local"
+          },
+          "app": {
+            "running": true,
+            "pid": 71390,
+            "desktopWindowStatus": "available"
+          },
+          "runtime": {
+            "state": "ready",
+            "reachable": true,
+            "runtimeId": "b60d2be1-bddc-4c0a-bbbb-7091cbb4158d",
+            "appVersion": "1.4.191",
+            "remoteUpdateSupport": {
+              "installMode": "interactive",
+              "automatic": true,
+              "reason": "available"
+            },
+            "capabilities": [
+              "runtime.status.compat.v1",
+              "runtime.environments.v1",
+              "remote-runtime.shared-control.v1",
+              "orchestration.federation.v1",
+              "orchestration.federation-control-mail.v1",
+              "orchestration.federation-lifecycle-settlement.v1",
+              "orchestration.worker-stop-verdict.v1",
+              "orchestration.worker-launch-preferences.v1",
+              "orchestration.contract.v1",
+              "browser.screencast.v1",
+              "browser.tab-create-known-id.v1",
+              "browser.clientHost.v1",
+              "browser.clientHost.pageMetadata.v1",
+              "browser.clientHost.automation.v1",
+              "browser.clientHost.fileChannel.v1",
+              "network.browserTunnel.v1",
+              "network.browserTunnel.executionHosts.v1",
+              "terminal.binary-stream.v1",
+              "terminal.multiplex.v1",
+              "workspace-ports.v1",
+              "mobile.tasks.v1",
+              "project-host-setup.v1",
+              "task-source-context.v1",
+              "workspace-run-context.v1",
+              "worktree.linked-work-item-context.v1",
+              "folder-workspace.path-status.v1",
+              "linear.issue-attribute-filter.v1",
+              "aiVault.v1",
+              "aiVault.session-titles.v1",
+              "terminal.query-reply-input.v1",
+              "terminal.paired-parking.v1",
+              "terminal.quick-commands.v1",
+              "worktree.create-idempotency.v1",
+              "terminal.create-idempotency.v2",
+              "session-tabs.close-intent.v1",
+              "agent-session.session-boundary.v1",
+              "updater.remote-control.v1",
+              "agent-session.host-authority.v1",
+              "agent-session.omp-resume-path.v1",
+              "agent-session.kimi-resume.v1",
+              "files.mutation-ownership.v1",
+              "worktree.visibility-defaults.v1",
+              "worktree.visibility-source-defaults.v1",
+              "accounts.import-host-credentials.v1",
+              "accounts.codex-reset-credit.v1",
+              "skills.install.v1",
+              "skills.install.bundle.v1",
+              "skills.install-cancel.v1",
+              "skills.install-progress.v1",
+              "skills.install-result.v2",
+              "skills.upload.v1",
+              "skills.manage.v1",
+              "skills.install-providers.v1",
+              "skills.delete.v1",
+              "automation.list-host-scope.v1",
+              "automation.owner-fencing.v1",
+              "browser.certificate-trust.v1"
+            ]
+          },
+          "graph": {
+            "state": "ready"
+          }
+        },
+        "_meta": {
+          "runtimeId": "b60d2be1-bddc-4c0a-bbbb-7091cbb4158d"
+        }
+      }
+    },
+    "orca_orchestration_guide": {
+      "result": "PASS",
+      "missing": []
+    },
+    "opencode": {
+      "result": "FAIL",
+      "detail": "Command '['/Users/zzymima0000/.nvm/versions/node/v24.19.0/bin/opencode', 'run', '--help']' timed out after 10 seconds"
+    },
+    "codex": {
+      "result": "PASS",
+      "path": "/Users/zzymima0000/.local/bin/codex",
+      "version": "codex-cli 0.150.1",
+      "sandbox_flag": true,
+      "approval_flag": true
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "schema_version": "4",
+  "project_id": "family-insurance-dashboard-pilot-c",
+  "repo_id": "local/family-insurance-dashboard",
+  "origin_template_version": "2.3.1-template.23",
+  "origin_manifest_hash": "b98e99a75c7b5b5cc55b5865c2c5208909f938b9b5924df35b2b4102d9de6b49",
+  "origin_fingerprint": "7bef0f046a16590ee5f0c9d05bb12318dad969b7f5154a465c61dd7a7015bf04",
+  "created_at": "2026-08-29T08:45:00+00:00",
+  "migration_mode": "hybrid_non_destructive"
+}

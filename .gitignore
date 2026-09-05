@@ -1,4 +1,6 @@
-# 临时/辅助脚本，不纳入版本存档
+# 临时/辅助脚本与中间文件，不纳入版本存档（统一放 scratch/）
+scratch/
+# 根目录历史残留的一次性检查脚本（已迁移至 scratch/，保留忽略以防再生）
 _check.js
 __chk.js
 _test_*.js
@@ -7,3 +9,46 @@ gen_svg.js
 
 # WorkBuddy 工具数据（含记忆），不纳入代码仓库
 .workbuddy/
+
+
+# Build outputs
+**/bin/
+**/obj/
+release/
+release-*/
+artifacts/runtime/
+
+# IDE and user-local settings
+.vs/
+.vscode/
+*.user
+*.suo
+.claude/settings.local.json
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+TestResults/
+
+# Local secrets and configuration
+config.json
+*.secrets.json
+# 部署私钥环境：只存在于部署副本，绝不进 Git（模板 docker/env.template 除外）
+.env
+.env.*
+!docker/env.template
+
+# 持久化与备份目录：真实业务文件与备份，绝不进 Git
+DockerData/
+DockerBackups/
+# 部署副本位于仓库外（~/Developer/coding/docker/family-insurance-dashboard/），此处仅防止误把 .env.local 带进仓库
+docker/*.local
+
+# OS metadata
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# 本机个人备份工具脚本，不进仓库
+备份本文件夹.command
