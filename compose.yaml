@@ -1,0 +1,35 @@
+name: ${COMPOSE_PROJECT_NAME:-family-insurance-dashboard}
+
+services:
+  app:
+    # 镜像名来自 IMAGE_TAG，保证每次部署有可回退的版本标识
+    image: ${IMAGE_TAG:-family-insurance-dashboard:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-family-insurance-dashboard}-app
+    restart: unless-stopped
+    ports:
+      # 宿主机端口由 APP_PORT 提供，不得在源码中写死
+      - "${APP_PORT:-3200}:80"
+    environment:
+      # 供容器与未来前端读取的公开运行地址（非密钥）
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:3200}
+      PROJECT_SLUG: ${PROJECT_SLUG:-family-insurance-dashboard}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# 说明：
+# 1. 本项目为纯静态单文件站点，业务数据存浏览器 localStorage / IndexedDB 或 Supabase 云端，
+#    容器内不落任何业务文件，因此【不使用 bind mount 挂载 DockerData】，也不使用 Named Volume。
+# 2. 若将来需要在服务端产出导入导出文件，必须改为 bind mount 到
+#    DockerData/family-insurance-dashboard/<明确子目录>/，且宿主机目录需预先创建。
