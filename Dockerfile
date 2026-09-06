@@ -18,8 +18,13 @@ RUN printf '%s\n' \
   '    }' \
   '}' > /etc/nginx/conf.d/default.conf
 
-# 唯一发布物：源码目录中的单文件产品
+# 唯一发布物：源码目录中的单文件产品 + 云同步脚本。
+# 注意：repository/*.js 必须进镜像，否则部署后云同步按钮全部失效（回退纯本机模式）；
+# src/config.js 由部署侧在构建前生成（见 docker/env.template），不进 Git 但必须进镜像，
+# 缺失会导致构建失败——这是故意的：宁可构建时报错，也不发布一个登不上云的版本。
 COPY src/family-insurance-dashboard.html /usr/share/nginx/html/index.html
+COPY src/config.js /usr/share/nginx/html/config.js
+COPY src/repository/ /usr/share/nginx/html/repository/
 
 EXPOSE 80
 

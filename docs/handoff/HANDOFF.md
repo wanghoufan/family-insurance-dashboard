@@ -1,5 +1,38 @@
 # 交接与历史协作协议（HANDOFF）
 
+## 最新交接（2026-09-07 · 全量收尾代码完成未提交 + 真机项 BLOCKED）
+
+> 本节为当前有效交接；下方 09-06 中午节为历史快照，与本文冲突处以本节为准。
+
+### 1. 本轮做了什么（全部本地验证，未 commit，等用户明确指令）
+
+1. **B1 R-2 加密备份**（`src/family-insurance-dashboard.html`）：「加密备份/恢复」按钮 +
+   PBKDF2-210k/AES-GCM-256 本机加解密，覆盖 8 个 localStorage 键 + IndexedDB 全部合同
+   （50MB 上限保护）。合成数据 roundtrip 通过、错密码正确拒绝；只用合成数据测，
+   未触碰真实身份证/合同。
+2. **B2**：删 store.js TEMP 注释，信标升为 `vA已加载`，脚本 `?v=20260907a` 同步。
+3. **B3**：「删除当前险种」+ `store.deleteRateType`（先清 entry 再删 type 行）；
+   `setRateCell` 接云端 + 险种行未建好时排队补写（修“需编辑两次”）；
+   `resetRateType` 同步清云端 entry（否则刷新后云端旧值覆盖回来）。
+   另修 replayed 路径 `refreshOne` 传参 bug（此前传字符串导致回读查全表）。
+4. **B4/B6 草案**：`scratch/README草案-20260907.md`、`scratch/R3-Redirect申请草案-20260907.md`
+   （均不进 Git，README 未动，共享项目未动）。
+5. **B5**：`docker compose config` 通过；`docker build` + 临时容器 `:3201` 实测 HTTP 200，
+   镜像/容器已清理。部署副本未建（`deploy.sh` 会起生产容器 + 占 3200，需用户一键授权）。
+6. **无头冒烟对照**：基线 HEAD 与本轮在无头 Chrome 下表现一致
+   （空表、无信标——为无头环境异步启动未完成所致，非回归；昨日 QA 真机信标正常）。
+   `node --check` 5/5 通过，`git diff --check` 通过，30 个事件 handler 全有定义。
+
+### 2. 还剩什么（需用户/真机）
+
+1. **commit / push**：等明确指令。改动：HTML、store.js、PLAN、QA_CHECKLIST、PRODUCT_BACKLOG、本文件。
+2. **B7 L1–L5 BLOCKED**：Tailscale CLI 在本机起不来（需 Mac 端 App）、无第二设备、
+   真人 Google 登录需用户操作。待 R-3 批复 + Tailscale 就绪后按 L1→L5 实测。
+3. **实机回归待补**：真实合同加解密、大文件上限、双设备险种删除一致性。
+4. 其余沿用 09-06 中午节（R-2 已交付，BACKLOG 两项已清）。
+
+---
+
 ## 最新交接（2026-09-06 中午 · 云端同步全链路验收通过 + 本机数据上云完成）
 
 > 本节为当前有效交接；下方「历史快照」各节与本文冲突处以本节为准。

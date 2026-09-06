@@ -94,9 +94,8 @@ FID.store = (function () {
       console.warn('[FID] 读取登录态失败，先按本机模式展示：', e && e.message);
     }
     renderUi();
-    /* TEMP 版本标记：证明用户浏览器加载的是本版代码（验证后删除） */
     /* 版本信标：稳定后缀，QA/用户据此确认加载的是新版（此行随版本号更新） */
-    document.title = '家庭保单数据看板 · vL已加载';
+    document.title = '家庭保单数据看板 · vA已加载';
     // 诊断/自动化入口：?login=1 且未登录时自动发起 OAuth（回程 redirectTo 不带 query，不会循环）
     try {
       if (!isCloud() && new URLSearchParams(location.search).get('login') === '1') {
@@ -327,6 +326,13 @@ FID.store = (function () {
   }
 
   /* ---------- 写入：费率 / 缴费趋势 ---------- */
+  /* 险种行尚未建好时的单元格写入暂存：险种 insert 回来后自动补写，首编即入云 */
+  var pendingCells = {};
+  function flushPendingCells(typeName) {
+    var pend = pendingCells[typeName] || [];
+    pendingCells[typeName] = [];
+    pend.forEach(function (c) { setRateCell(typeName, c.person, c.year, c.val); });
+  }
   function insertRateType(name) {
     if (!isCloud()) return;
     if (typeMeta[name]) return;
@@ -337,15 +343,28 @@ FID.store = (function () {
       label: '新增费率险种「' + name + '」',
       payload: { client_id: cid, name: String(name).slice(0, 32) },
       onDone: function (res) {
-        if (res && res.row) typeMeta[name] = { serverId: res.row.id, revision: res.row.revision, clientId: res.row.client_id };
-        else if (res && res.replayed) refreshOne('rateType', null, cid, name);
+        if (res && res.row) {
+          typeMeta[name] = { serverId: res.row.id, revision: res.row.revision, clientId: res.row.client_id };
+          flushPendingCells(name);
+        }
+        else if (res && res.replayed) refreshOne('rateType', { client_id: cid }, null, name);
       }
     });
   }
   function setRateCell(typeName, person, year, val) {
     if (!isCloud()) return;
     var tm = typeMeta[typeName];
-    if (!tm) { insertRateType(typeName); return; }
+    if (!tm) {
+      // 险种行还在建队等云端返回：先排队，insert 成功后 flushPendingCells 自动补写（不丢本次编辑）
+      insertRateType(typeName);
+      var q = pendingCells[typeName] = pendingCells[typeName] || [];
+      var i;
+      for (i = 0; i < q.length; i++) {
+        if (q[i].person === person && q[i].year === year) { q[i].val = val; return; }
+      }
+      q.push({ person: person, year: year, val: val });
+      return;
+    }
     var m = entryMeta[tm.serverId] = entryMeta[tm.serverId] || {};
     var pm = m[person] = m[person] || {};
     var em = pm[year];
@@ -396,6 +415,18 @@ FID.store = (function () {
     });
     entryMeta[tm.serverId] = {};
   }
+  /* 删除险种：先清该险种全部云端 entry，再删 type 行（本机 analytics 由调用方同步删除） */
+  function deleteRateType(typeName) {
+    if (!isCloud()) return;
+    clearRateEntries(typeName);
+    var tm = typeMeta[typeName];
+    if (tm && tm.serverId) {
+      FID.outbox.enqueue({ kind: 'rateType', op: 'delete', serverId: tm.serverId, label: '删除费率险种「' + typeName + '」', onDone: function () {} });
+      if (entryMeta[tm.serverId]) delete entryMeta[tm.serverId];
+    }
+    delete typeMeta[typeName];
+    delete pendingCells[typeName];
+  }
 
   /* ---------- 写入结果处理（含冲突裁决） ---------- */
   function afterWrite(kind, rec, res) {
@@ -444,6 +475,7 @@ FID.store = (function () {
         if (typeof saveTodos === 'function') saveTodos();
       } else if (kind === 'rateType' && typeName) {
         typeMeta[typeName] = { serverId: row.id, revision: row.revision, clientId: row.client_id };
+        flushPendingCells(typeName);
       }
     }).catch(function (e) { console.warn('[FID] 重放回读失败：', e && e.message); });
   }
@@ -537,6 +569,7 @@ FID.store = (function () {
     insertPolicy: insertPolicy, commitPolicy: commitPolicy, deletePolicy: deletePolicy,
     insertTodo: insertTodo, commitTodo: commitTodo, deleteTodo: deleteTodo,
     insertRateType: insertRateType, setRateCell: setRateCell, clearRateEntries: clearRateEntries,
+    deleteRateType: deleteRateType,
     uploadLocalDrafts: uploadLocalDrafts, localDraftCount: localDraftCount,
     isCloud: isCloud, renderUi: renderUi, currentUser: function () { return user; }
   };

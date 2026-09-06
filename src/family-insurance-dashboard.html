@@ -93,9 +93,12 @@
     <button class="primary" onclick="openForm()">+ 添加保单</button>
     <button onclick="document.getElementById('importFile').click()">导入</button>
     <button onclick="exportData()">导出 JSON</button>
+    <button onclick="exportPrivateBackup()" title="加密备份本机全部数据（保单+身份证sidecar+待办+费率+合同附件），设密码后下载，解密也在本机完成">加密备份</button>
+    <button onclick="document.getElementById('restoreFile').click()" title="从加密备份文件恢复本机数据（会覆盖当前本机数据）">加密恢复</button>
     <button onclick="exportExcel()">导出 Excel 模板</button>
     <button onclick="clearSeedData()" title="移除内置的示例/脱敏数据，只保留你自己的真实记录">清除示例数据</button>
     <input type="file" id="importFile" accept=".json,.csv,.xls" style="display:none" onchange="importData(this)">
+    <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="importPrivateBackup(this)">
   </div>
 </header>
 
@@ -184,6 +187,7 @@
       <span style="color:var(--muted);font-size:13px">险种</span>
       <select id="rateType" onchange="switchRateType(this.value)"></select>
       <button onclick="addRateType()">+ 新增险种</button>
+      <button onclick="delRateType()" title="删除当前选中的险种及其全部录入数据">删除当前险种</button>
     </div>
     <div style="overflow-x:auto;">
       <table id="rateTable" style="min-width:520px"></table>
@@ -245,11 +249,11 @@
 
 <!-- 云端访问层：加载顺序固定 supabase-js → config → client → outbox → repos → store；v 参数用于失效 Chrome 本地缓存 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js?v=20260906l"></script>
-<script src="repository/client.js?v=20260906l"></script>
-<script src="repository/outbox.js?v=20260906l"></script>
-<script src="repository/repos.js?v=20260906l"></script>
-<script src="repository/store.js?v=20260906l"></script>
+<script src="config.js?v=20260907a"></script>
+<script src="repository/client.js?v=20260907a"></script>
+<script src="repository/outbox.js?v=20260907a"></script>
+<script src="repository/repos.js?v=20260907a"></script>
+<script src="repository/store.js?v=20260907a"></script>
 <script>
 /* ---------- 种子数据（示例 / 已脱敏，不含任何真实个人信息） ---------- */
 const DATA_VERSION=4;
@@ -770,6 +774,83 @@ function downloadBlob(blob,name){
   document.body.appendChild(a); a.click();
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000);
 }
+/* ---------- R-2 本机私有数据加密备份（零依赖，WebCrypto 本机加解密） ----------
+   覆盖：localStorage 全量键（保单全字段/身份证sidecar/待办/费率/排序等）
+   + IndexedDB 全部合同附件。密码只存用户脑子里，加解密全在本机，绝不上传。 */
+const PRIV_BACKUP_LS_KEYS=['familyPolicies','familyPrivate','familyTodos','familyAnalytics','familyRowOrder','familyColOrder','familySortMode','familyDataVer'];
+function bufToB64(buf){ const b=new Uint8Array(buf); let s=''; for(let i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s); }
+function b64ToBuf(s){ const bin=atob(s); const b=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b.buffer; }
+async function backupKeyFromPassword(password,salt){
+  const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt:salt,iterations:210000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+function fileToDataUrl(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(r.error); r.readAsDataURL(file); }); }
+function dataUrlToFile(url,name,type){ const m=String(url).match(/^data:(.*?);base64,(.*)$/); if(!m) return null;
+  const bin=atob(m[2]); const b=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i);
+  try{ return new File([b],name||'contract',{type:type||m[1]}); }catch(e){ return new Blob([b],{type:type||m[1]}); } }
+async function collectBackupPayload(){
+  const ls={}; PRIV_BACKUP_LS_KEYS.forEach(k=>{ ls[k]=localStorage.getItem(k); });
+  const files=[]; let total=0;
+  try{
+    if(db){
+      const tx=db.transaction('files','readonly'); const st=tx.objectStore('files');
+      const keys=await new Promise((res)=>{ try{ const rq=st.getAllKeys(); rq.onsuccess=()=>res(rq.result||[]); rq.onerror=()=>res(null); }catch(e){ res(null); } });
+      const ids=keys||((function(){ try{ return JSON.parse(ls.familyPolicies||'[]').map(p=>p.id); }catch(e){ return []; } })());
+      for(const id of ids){
+        const f=await getFile(id); if(!f) continue;
+        const url=await fileToDataUrl(f); total+=String(url).length;
+        if(total>50*1024*1024) throw new Error('合同附件合计超过 50MB，上限保护：请先删除不需要的附件再备份');
+        files.push({id:id,name:f.name||('contract-'+id),type:f.type||'',dataUrl:url});
+      }
+    }
+  }catch(e){ if(e&&e.message&&e.message.indexOf('50MB')>=0) throw e; }
+  return {app:'family-insurance-dashboard',kind:'private-backup',v:1,exportedAt:new Date().toISOString(),ls:ls,files:files};
+}
+async function exportPrivateBackup(){
+  try{
+    if(!window.crypto||!crypto.subtle){ alert('当前浏览器不支持 WebCrypto，无法加密备份（请用新版 Chrome/Edge/Safari）'); return; }
+    const p1=prompt('设置备份密码（以后恢复要用，至少 6 位，只存你脑子里）：'); if(!p1) return;
+    if(p1.length<6 && !confirm('密码少于 6 位，继续？')) return;
+    const p2=prompt('再输一次确认密码：'); if(p2!==p1){ alert('两次密码不一致，已取消'); return; }
+    toast('正在打包加密备份…');
+    const payload=await collectBackupPayload();
+    const salt=crypto.getRandomValues(new Uint8Array(16)); const iv=crypto.getRandomValues(new Uint8Array(12));
+    const key=await backupKeyFromPassword(p1,salt.buffer);
+    const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv:iv},key,new TextEncoder().encode(JSON.stringify(payload)));
+    const out={app:'family-insurance-dashboard',kind:'private-backup-encrypted',v:1,
+      alg:'PBKDF2-SHA256-210k/AES-GCM-256',salt:bufToB64(salt.buffer),iv:bufToB64(iv.buffer),data:bufToB64(ct)};
+    downloadBlob(new Blob([JSON.stringify(out)],{type:'application/json'}),'家庭保单加密备份.json');
+    const nFiles=(payload.files||[]).length;
+    toast('加密备份已下载（含 '+nFiles+' 个合同附件）');
+  }catch(e){ alert('加密备份失败：'+(e&&e.message||e)); }
+}
+async function importPrivateBackup(input){
+  const f=input.files[0]; input.value=''; if(!f) return;
+  try{
+    const out=JSON.parse(await f.text());
+    if(!out||out.kind!=='private-backup-encrypted'||!out.data) throw new Error('不是本看板的加密备份文件');
+    const p=prompt('输入备份密码：'); if(!p) return;
+    const key=await backupKeyFromPassword(p,b64ToBuf(out.salt));
+    let payload;
+    try{ payload=JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:new Uint8Array(b64ToBuf(out.iv))},key,b64ToBuf(out.data)))); }
+    catch(e){ alert('密码不对或文件损坏，无法解密'); return; }
+    if(!payload||payload.kind!=='private-backup') throw new Error('备份内容校验失败');
+    const nPol=(function(){ try{ return JSON.parse(payload.ls.familyPolicies||'[]').length; }catch(e){ return 0; } })();
+    if(!confirm('将用备份（'+nPol+' 条保单、'+((payload.files||[]).length)+' 个合同附件，导出于 '+(payload.exportedAt||'未知时间')+'）覆盖当前本机数据？\n建议先做一次「导出 JSON」留底。')) return;
+    Object.keys(payload.ls||{}).forEach(k=>{ if(PRIV_BACKUP_LS_KEYS.indexOf(k)>=0){ if(payload.ls[k]==null) localStorage.removeItem(k); else localStorage.setItem(k,payload.ls[k]); } });
+    await openDB();
+    if(db){
+      const tx=db.transaction('files','readwrite'); const st=tx.objectStore('files');
+      await new Promise((res)=>{ try{ const rq=st.clear(); rq.onsuccess=()=>res(); rq.onerror=()=>res(); }catch(e){ res(); } });
+      for(const it of (payload.files||[])){
+        const file=dataUrlToFile(it.dataUrl,it.name,it.type); if(!file) continue;
+        await new Promise((res)=>{ try{ const tx2=db.transaction('files','readwrite'); tx2.objectStore('files').put(file,it.id); tx2.oncomplete=()=>res(); tx2.onerror=()=>res(); }catch(e){ res(); } });
+      }
+    }
+    alert('加密恢复完成，页面即将刷新');
+    location.reload();
+  }catch(e){ alert('加密恢复失败：'+(e&&e.message||e)); }
+}
 /* Excel 导出列：与用户桌面模板 15 列完全一致（导入列名归一化后自动映射） */
 const EXCEL_COLS=[
   {key:'insured',label:'被保人'},
@@ -981,6 +1062,18 @@ function addRateType(){
   if(window.FID) FID.store.insertRateType(t);
   renderRateShell(); renderRateTable(); renderRateChart(); renderRateYoY();
 }
+function delRateType(){
+  const t=analyticsCurType;
+  if(!t||!analytics.types[t]){ alert('当前没有可删除的险种'); return; }
+  if(Object.keys(analytics.types).length<=1){ alert('至少保留一个险种，不能全部删除'); return; }
+  if(!confirm('确定删除险种「'+t+'」及其全部录入数据？\n云端同步开启时也会删除云端对应记录，该操作不可撤销。建议先做一次备份。')) return;
+  if(window.FID && FID.store.deleteRateType) FID.store.deleteRateType(t);
+  else if(window.FID) FID.store.clearRateEntries(t);
+  delete analytics.types[t];
+  analyticsCurType=Object.keys(analytics.types)[0];
+  saveAnalytics(); renderRateShell(); renderRateTable(); renderRateChart(); renderRateYoY();
+  toast('已删除险种「'+t+'」');
+}
 function renderRateTable(){
   const tbl=document.getElementById('rateTable'); if(!tbl) return;
   const t=curRateType(); const years=t.years, people=Object.keys(t.rows);
@@ -1016,8 +1109,12 @@ function renderRateTable(){
 function setRateCell(p,y,val){
   const n=parseFloat(val); const t=curRateType();
   if(!t.rows[p]) t.rows[p]={};
-  t.rows[p][y]=(val===''||isNaN(n))?null:n;
-  saveAnalytics(); renderRateTable(); renderRateChart(); renderRateYoY();
+  const nv=(val===''||isNaN(n))?null:n;
+  t.rows[p][y]=nv;
+  saveAnalytics();
+  /* 云端模式：单元格记录级入云；险种行未建好时 store 排队待建好后自动补写 */
+  if(window.FID) FID.store.setRateCell(analyticsCurType,p,y,nv);
+  renderRateTable(); renderRateChart(); renderRateYoY();
 }
 function addRateYear(){
   const t=curRateType(); const next=(t.years[t.years.length-1]||(new Date().getFullYear()-1))+1;
@@ -1034,6 +1131,8 @@ function addRatePerson(){
 }
 function resetRateType(){
   if(!confirm('清空当前险种「'+analyticsCurType+'」的录入数据，恢复初始示例？')) return;
+  /* 云端模式：先删云端该险种全部 entry，否则下次刷新云端旧值会覆盖回来 */
+  if(window.FID) FID.store.clearRateEntries(analyticsCurType);
   if(ANALYTICS_SEED.types[analyticsCurType]){ analytics.types[analyticsCurType]=JSON.parse(JSON.stringify(ANALYTICS_SEED.types[analyticsCurType])); }
   else { const yr=new Date().getFullYear(); analytics.types[analyticsCurType]={years:[yr],rows:{}}; }
   saveAnalytics(); renderRateShell(); renderRateTable(); renderRateChart(); renderRateYoY();

@@ -1,5 +1,26 @@
 # PLAN.md — 当前需求与验收
 
+## 2026-09-07 全量收尾（进行中，用户已说“全部都做”）
+
+目标：收掉 HANDOFF 09-06 中午 §2 全部欠账。隐私红线：只用脱敏示例/合成数据验证，
+绝不读取真实身份证/合同；改完不自动提交，等用户明确说提交再动。
+
+| ID | 验收标准 | 预期证据 | 状态 |
+|---|---|---|---|
+| B1 | R-2 本机私有数据加密备份：身份证 sidecar + 合同 IndexedDB 可加密导出/恢复，零依赖离线可用 | 合成数据 roundtrip + `node --check` | 已实现未提交 |
+| B2 | store.js TEMP 注释清理，版本信标保留 | diff + 冒烟 | 已完成未提交 |
+| B3 | 险种可删除（含云端行）；费率格首次编辑即入云（不再需编两次） | 合成逻辑检查 + 浏览器实测 | 已实现未提交 |
+| B4 | README 只出草案不直接改（含云端同步说明） | scratch 草案给用户确认 | 草案完成 |
+| B5 | Docker 部署前校验通过；副本创建按规范执行 | `compose config` + 目录检查 | 校验通过，副本待建 |
+| B6 | R-3 Redirect 追加只出申请草案放 scratch，不直改共享项目 | 草案文件 | 草案完成 |
+| B7 | L1–L5 能测实测留记录，不能测标 BLOCKED（缺 Tailscale/第二设备/真人登录） | QA 记录 | 部分 BLOCKED |
+
+文件边界：`src/family-insurance-dashboard.html`、`src/repository/store.js`、
+`docs/qa/QA_CHECKLIST.md`、`docs/review/PRODUCT_BACKLOG.md`、本文件、
+`scratch/` 草案与一次性测试。`src/config.js` 永不进 Git。
+
+---
+
 ## 目标与验收
 
 目标：保留现有用户改动，将指定的 `C:\Users\ZhuanZ\Desktop\家庭保单明细表模板.xls`
