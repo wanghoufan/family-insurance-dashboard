@@ -85,10 +85,11 @@
 <body>
 <header>
   <div>
-    <h1>家庭保单数据看板 <span class="lock">🔒 数据仅存本机</span></h1>
-    <div class="sub">本地 HTML · 不上传任何服务器 · 记录存 localStorage，合同文件存 IndexedDB</div>
+    <h1>家庭保单数据看板 <span class="lock" id="privacyLock">🔒 本机草稿 · 未上云</span></h1>
+    <div class="sub" id="subLine">本地 HTML · 数据仅存本机（localStorage + IndexedDB）· 登录后可多设备同步</div>
   </div>
   <div class="actions">
+    <span id="cloudActions" style="display:inline-flex;gap:8px;flex-wrap:wrap"></span>
     <button class="primary" onclick="openForm()">+ 添加保单</button>
     <button onclick="document.getElementById('importFile').click()">导入</button>
     <button onclick="exportData()">导出 JSON</button>
@@ -242,6 +243,13 @@
   </div>
 </div>
 
+<!-- 云端访问层：加载顺序固定 supabase-js → config → client → outbox → repos → store；v 参数用于失效 Chrome 本地缓存 -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js?v=20260906l"></script>
+<script src="repository/client.js?v=20260906l"></script>
+<script src="repository/outbox.js?v=20260906l"></script>
+<script src="repository/repos.js?v=20260906l"></script>
+<script src="repository/store.js?v=20260906l"></script>
 <script>
 /* ---------- 种子数据（示例 / 已脱敏，不含任何真实个人信息） ---------- */
 const DATA_VERSION=4;
@@ -311,7 +319,11 @@ function clearSeedData(){
   const real=policies.filter(p=>!p._seedTag);
   if(real.length===before){ alert('当前没有可清除的示例数据，全部都是你自己的真实记录。'); return; }
   if(!confirm('将移除 '+(before-real.length)+' 条内置示例数据，仅保留你自己的 '+real.length+' 条真实记录？\n建议先点「导出 JSON」备份再操作。')) return;
-  policies=real; savePolicies(); renderTable();
+  const removed=policies.filter(p=>p._seedTag);
+  policies=real; savePolicies();
+  /* 云端模式：示例数据从未上云，这里仅防御性调用（无 _serverId 会自动跳过） */
+  if(window.FID) removed.forEach(p=>FID.store.deletePolicy(p.id));
+  renderTable();
   alert('已清除示例数据，保留 '+policies.length+' 条真实记录。建议立即点「导出 JSON」留一份备份。');
 }
 
@@ -360,7 +372,7 @@ function endLabel(p){
 /* ---------- 计算派生字段 ---------- */
 function enrich(){
   policies.forEach(p=>{
-    p.endDate=parseEnd(p.period, p.insuredId);
+    p.endDate=parseEnd(p.period, p.insuredId) || p._expiryDate || null;
     const importedStatus=String(p.statusOverride||'').trim();
     const importedStatusMap={
       '保障中':{key:'active',text:'保障中',cls:'active'},
@@ -616,14 +628,19 @@ function editCell(id,key,td){
     const oldVal=valOf(p,key);
     p[key]=v;
     const nv=valOf(p,key);
-    let synced=0;
+    let synced=0; const changed=[];
     if(SYNC_FIELDS.includes(key)){
       const cb=document.getElementById('syncNames');
       if(cb&&cb.checked && oldVal!==nv){
-        policies.forEach(q=>{ if(q!==p && valOf(q,key)===oldVal){ q[key]=nv; synced++; } });
+        policies.forEach(q=>{ if(q!==p && valOf(q,key)===oldVal){ q[key]=nv; synced++; changed.push(q); } });
       }
     }
     savePolicies();
+    /* 云端模式：该字段记录级条件更新（同名记录逐条入队） */
+    if(window.FID){
+      FID.store.commitPolicy(p);
+      changed.forEach(q=>FID.store.commitPolicy(q));
+    }
     renderKPIs(); renderRenewStat(); renderCharts(); renderTable();
     if(synced>0) toast(`已同步更新 ${synced} 条相同「${colByKey[key].label}」记录`);
   }
@@ -703,22 +720,28 @@ async function saveForm(){
   if(editingId){
     const idx=policies.findIndex(x=>x.id===editingId);
     const oldP=policies[idx];
-    let synced=0;
+    let synced=0; const changed=[];
     const cb=document.getElementById('syncNames');
     if(cb&&cb.checked){
       SYNC_FIELDS.forEach(key=>{
         const oldVal=valOf(oldP,key), newVal=valOf(rec,key);
         if(oldVal!==newVal){
-          policies.forEach(q=>{ if(q!==oldP && valOf(q,key)===oldVal){ q[key]=newVal; synced++; } });
+          policies.forEach(q=>{ if(q!==oldP && valOf(q,key)===oldVal){ q[key]=newVal; synced++; changed.push(q); } });
         }
       });
     }
     policies[idx]={...policies[idx],...rec};
+    /* 云端模式：记录级条件更新（本机模式仅 savePolicies 落 localStorage） */
+    if(window.FID){
+      FID.store.commitPolicy(policies[idx]);
+      changed.forEach(q=>FID.store.commitPolicy(q));
+    }
     if(synced>0) toast(`已同步更新 ${synced} 条同名记录`);
     else toast('保单已更新');
   }else{
-    rec.id='p'+Date.now()+Math.floor(Math.random()*1000);
+    rec.id=window.FID?FID.uuid():'p'+Date.now()+Math.floor(Math.random()*1000);
     policies.push(rec); rowOrder.push(rec.id);
+    if(window.FID) FID.store.insertPolicy(rec);
     toast('保单已添加');
   }
   savePolicies();
@@ -728,15 +751,18 @@ async function saveForm(){
   highlightRow(targetId);
 }
 function editRow(id){ openForm(id); }
-function delRow(id){ if(confirm('确定删除该保单？')){ policies=policies.filter(p=>p.id!==id); delFile(id); savePolicies(); loadRowOrder(); refreshAll(); } }
+function delRow(id){
+  if(!confirm('确定删除该保单？')) return;
+  if(window.FID) FID.store.deletePolicy(id);
+  policies=policies.filter(p=>p.id!==id); delFile(id); savePolicies(); loadRowOrder(); refreshAll();
+}
 
 /* ---------- 导入 / 导出 ---------- */
 function exportData(){
   const real=policies.filter(p=>!p._seedTag);
   const seedCount=policies.length-real.length;
   if(seedCount>0 && !confirm('当前包含 '+seedCount+' 条示例数据，导出将自动排除它们，仅备份你自己的 '+real.length+' 条真实记录。继续？')) return;
-  downloadBlob(new Blob([JSON.stringify(real,null,2)],{type:'application/json'}),'家庭保单备份.json');;
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='家庭保单备份.json'; a.click();
+  downloadBlob(new Blob([JSON.stringify(real,null,2)],{type:'application/json'}),'家庭保单备份.json');
 }
 function downloadBlob(blob,name){
   const a=document.createElement('a');
@@ -950,7 +976,10 @@ function addRateType(){
   const yr=new Date().getFullYear();
   const rows={}; [...new Set(policies.map(p=>p.insured))].filter(Boolean).forEach(n=>{ rows[n]={}; rows[n][yr]=null; });
   analytics.types[t]={years:[yr],rows};
-  analyticsCurType=t; saveAnalytics(); renderRateShell(); renderRateTable(); renderRateChart(); renderRateYoY();
+  analyticsCurType=t; saveAnalytics();
+  /* 云端模式：险种上行（年度/被保人骨架不产生云端行，填值时才写入 rate_entries） */
+  if(window.FID) FID.store.insertRateType(t);
+  renderRateShell(); renderRateTable(); renderRateChart(); renderRateYoY();
 }
 function renderRateTable(){
   const tbl=document.getElementById('rateTable'); if(!tbl) return;
@@ -977,7 +1006,7 @@ function renderRateTable(){
           rateHtml='<td style="padding:8px 10px;color:var(--muted);font-size:12px;text-align:center">无对比</td>';
         }
       }
-      return `<td style="padding:8px 10px"><input type="number" value="${disp}" data-p="${escapeHtml(p)}" data-y="${y}" onchange="setRateCell('${escapeHtml(p)}',${y},this.value)" style="width:88px;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px;font-family:inherit;font-size:13px"></td>`+rateHtml;
+      return `<td style="padding:8px 10px"><input type="number" value="${disp}" data-p="${escapeHtml(p)}" data-y="${y}" onchange="setRateCell('${escapeHtml(p)}',${y},this.value)" onkeydown="if(event.key==='Enter')this.blur()" style="width:88px;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px;font-family:inherit;font-size:13px"></td>`+rateHtml;
     }).join('');
     return `<tr><td style="font-weight:600;white-space:nowrap;padding:8px 10px;vertical-align:middle">${escapeHtml(p)}</td>${cells}</tr>`;
   }).join('');
@@ -1092,12 +1121,17 @@ async function refreshAll(){ enrich(); renderKPIs(); renderRenewStat(); renderCh
 /* ---------- 启动 ---------- */
 (async function(){
   await openDB();
-  loadPolicies();
+  if (window.FID && FID.store) {
+    // 云端/本机模式判定（读登录态、注册 auth 监听），再按模式加载云端或本机数据
+    await FID.store.init();
+    await FID.store.loadAll();
+  } else {
+    // 纯离线兜底（repository 未加载时仍可用本机模式）
+    loadPolicies(); loadTodos(); loadAnalytics();
+  }
   const sm=localStorage.getItem('familySortMode'); if(sm) sortMode=sm;
   const sel=document.getElementById('sortMode'); if(sel) sel.value=sortMode;
-  loadTodos();
   loadColOrder();
-  loadAnalytics();
   await refreshAll();
   renderTodos();
   renderRateShell(); renderRateTable(); renderRateChart(); renderRateYoY();

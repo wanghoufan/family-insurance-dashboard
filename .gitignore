@@ -44,6 +44,8 @@ DockerData/
 DockerBackups/
 # 部署副本位于仓库外（~/Developer/coding/docker/family-insurance-dashboard/），此处仅防止误把 .env.local 带进仓库
 docker/*.local
+# 云端公开配置本机副本（含 publishable key，可进浏览器 bundle 但不入库；仓库只保留 config.example.js）
+src/config.js
 
 # OS metadata
 Thumbs.db
