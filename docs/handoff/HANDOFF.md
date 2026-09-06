@@ -23,6 +23,9 @@
    `family-insurance-dashboard:20260907a` 构建启动，`http://localhost:3200` 200，
    `/config.js` 与 `/repository/*.js` 200（Dockerfile 补 COPY 生效），容器 healthy。
    `DEPLOY_CONFIG_FILE=.deploy.family-insurance-dashboard.env` 已保存。
+   2026-09-07 晚二次部署：副本已同步到 `22053aa`（P1 三项 + CR-12 + 信标 vC），
+   镜像 `family-insurance-dashboard:20260907c` 重建启动，`:3200` 200、`config.js` 200、
+   新功能标记齐全，容器 healthy（`.env.local` 与 `src/config.js` 在 reset 后完好，porcelain 干净）。
    注意：`docker/deploy.sh` 在本机 `/bin/bash` 3.2 下跑不到构建——第 169 行
    `log "部署提交：$COMMIT（…）"` 全角括号紧跟变量名，`set -u` 报
    `COMMIT: unbound variable`（最小复现已验证）。本次绕过 deploy.sh，
