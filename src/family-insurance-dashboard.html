@@ -249,11 +249,11 @@
 
 <!-- 云端访问层：加载顺序固定 supabase-js → config → client → outbox → repos → store；v 参数用于失效 Chrome 本地缓存 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js?v=20260907a"></script>
-<script src="repository/client.js?v=20260907a"></script>
-<script src="repository/outbox.js?v=20260907a"></script>
-<script src="repository/repos.js?v=20260907a"></script>
-<script src="repository/store.js?v=20260907a"></script>
+<script src="config.js?v=20260907c"></script>
+<script src="repository/client.js?v=20260907c"></script>
+<script src="repository/outbox.js?v=20260907c"></script>
+<script src="repository/repos.js?v=20260907c"></script>
+<script src="repository/store.js?v=20260907c"></script>
 <script>
 /* ---------- 种子数据（示例 / 已脱敏，不含任何真实个人信息） ---------- */
 const DATA_VERSION=4;
@@ -791,19 +791,20 @@ function dataUrlToFile(url,name,type){ const m=String(url).match(/^data:(.*?);ba
 async function collectBackupPayload(){
   const ls={}; PRIV_BACKUP_LS_KEYS.forEach(k=>{ ls[k]=localStorage.getItem(k); });
   const files=[]; let total=0;
-  try{
-    if(db){
-      const tx=db.transaction('files','readonly'); const st=tx.objectStore('files');
-      const keys=await new Promise((res)=>{ try{ const rq=st.getAllKeys(); rq.onsuccess=()=>res(rq.result||[]); rq.onerror=()=>res(null); }catch(e){ res(null); } });
-      const ids=keys||((function(){ try{ return JSON.parse(ls.familyPolicies||'[]').map(p=>p.id); }catch(e){ return []; } })());
-      for(const id of ids){
-        const f=await getFile(id); if(!f) continue;
-        const url=await fileToDataUrl(f); total+=String(url).length;
-        if(total>50*1024*1024) throw new Error('合同附件合计超过 50MB，上限保护：请先删除不需要的附件再备份');
-        files.push({id:id,name:f.name||('contract-'+id),type:f.type||'',dataUrl:url});
-      }
-    }
-  }catch(e){ if(e&&e.message&&e.message.indexOf('50MB')>=0) throw e; }
+  // CR-0907-02：备份异常必须 loud——任何失败都 throw，绝不返回“部分文件 + 成功 toast”
+  await openDB();
+  if(!db) throw new Error('合同数据库（IndexedDB）不可用，无法确认附件完整性，已中止备份（已有数据未动）');
+  const tx=db.transaction('files','readonly'); const st=tx.objectStore('files');
+  const keys=await new Promise((res,rej)=>{ try{ const rq=st.getAllKeys(); rq.onsuccess=()=>res(rq.result||[]); rq.onerror=()=>rej(rq.error||new Error('读取附件列表失败，备份已中止')); }catch(e){ rej(e); } });
+  const ids=keys.length?keys:((function(){ try{ return (JSON.parse(ls.familyPolicies||'[]')||[]).map(p=>p.id).filter(Boolean); }catch(e){ return []; } })());
+  for(const id of ids){
+    const f=await getFile(id); if(!f) continue;
+    let url;
+    try{ url=await fileToDataUrl(f); }catch(e){ throw new Error('合同「'+id+'」读取失败，备份已中止（已有数据未动）'); }
+    total+=String(url).length;
+    if(total>50*1024*1024) throw new Error('合同附件合计超过 50MB，上限保护：请先删除不需要的附件再备份');
+    files.push({id:id,name:f.name||('contract-'+id),type:f.type||'',dataUrl:url});
+  }
   return {app:'family-insurance-dashboard',kind:'private-backup',v:1,exportedAt:new Date().toISOString(),ls:ls,files:files};
 }
 async function exportPrivateBackup(){
@@ -835,17 +836,26 @@ async function importPrivateBackup(input){
     try{ payload=JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:new Uint8Array(b64ToBuf(out.iv))},key,b64ToBuf(out.data)))); }
     catch(e){ alert('密码不对或文件损坏，无法解密'); return; }
     if(!payload||payload.kind!=='private-backup') throw new Error('备份内容校验失败');
-    const nPol=(function(){ try{ return JSON.parse(payload.ls.familyPolicies||'[]').length; }catch(e){ return 0; } })();
-    if(!confirm('将用备份（'+nPol+' 条保单、'+((payload.files||[]).length)+' 个合同附件，导出于 '+(payload.exportedAt||'未知时间')+'）覆盖当前本机数据？\n建议先做一次「导出 JSON」留底。')) return;
-    Object.keys(payload.ls||{}).forEach(k=>{ if(PRIV_BACKUP_LS_KEYS.indexOf(k)>=0){ if(payload.ls[k]==null) localStorage.removeItem(k); else localStorage.setItem(k,payload.ls[k]); } });
+    const nPol=(function(){ try{ return (JSON.parse(payload.ls.familyPolicies||'[]')||[]).length; }catch(e){ return 0; } })();
+    // CR-0907-01：两阶段恢复——先把全部附件解码验证通过，再动现有数据；单个损坏即中止，当前数据未动
+    let staged;
+    try{
+      staged=(payload.files||[]).map(it=>{ const file=dataUrlToFile(it.dataUrl,it.name,it.type); if(!file) throw new Error('附件解码失败：'+it.id); return {id:it.id,file:file}; });
+    }catch(e){ throw new Error('备份中合同附件损坏无法解码，已中止，当前数据未动（'+(e&&e.message||e)+'）'); }
+    if(!confirm('将用备份（'+nPol+' 条保单、'+staged.length+' 个合同附件，导出于 '+(payload.exportedAt||'未知时间')+'）覆盖当前本机数据？\n建议先做一次「加密备份」留底（注意：普通「导出 JSON」不含合同附件）。')) return;
+    // CR-0907-12：IDB 不可用且备份中有附件时，写 localStorage 之前就明示中止（否则合同静默不恢复却报完成）
     await openDB();
+    if(!db&&staged.length) throw new Error('合同数据库（IndexedDB）不可用，备份中有 '+staged.length+' 个合同附件无法恢复，已中止，当前数据未动（请用 Chrome/Edge 重试）');
+    Object.keys(payload.ls||{}).forEach(k=>{ if(PRIV_BACKUP_LS_KEYS.indexOf(k)>=0){ if(payload.ls[k]==null) localStorage.removeItem(k); else localStorage.setItem(k,payload.ls[k]); } });
     if(db){
-      const tx=db.transaction('files','readwrite'); const st=tx.objectStore('files');
-      await new Promise((res)=>{ try{ const rq=st.clear(); rq.onsuccess=()=>res(); rq.onerror=()=>res(); }catch(e){ res(); } });
-      for(const it of (payload.files||[])){
-        const file=dataUrlToFile(it.dataUrl,it.name,it.type); if(!file) continue;
-        await new Promise((res)=>{ try{ const tx2=db.transaction('files','readwrite'); tx2.objectStore('files').put(file,it.id); tx2.oncomplete=()=>res(); tx2.onerror=()=>res(); }catch(e){ res(); } });
+      try{ await new Promise((res,rej)=>{ try{ const rq=db.transaction('files','readwrite').objectStore('files').clear(); rq.onsuccess=()=>res(); rq.onerror=()=>rej(rq.error||new Error('清空旧合同失败')); }catch(e){ rej(e); } }); }
+      catch(e){ throw new Error('清空旧合同失败，保单数据已写入、合同未动，请重试恢复（'+(e&&e.message||e)+'）'); }
+      const failed=[];
+      for(const s of staged){
+        try{ await new Promise((res,rej)=>{ try{ const tx2=db.transaction('files','readwrite'); tx2.objectStore('files').put(s.file,s.id); tx2.oncomplete=()=>res(); tx2.onerror=()=>rej(tx2.error||new Error('写入失败')); }catch(e){ rej(e); } }); }
+        catch(e){ failed.push(s.id); }
       }
+      if(failed.length){ alert('加密恢复部分完成：保单数据已恢复，但 '+failed.length+' 个合同附件写入失败（'+failed.join('、')+'），请重试恢复'); location.reload(); return; }
     }
     alert('加密恢复完成，页面即将刷新');
     location.reload();

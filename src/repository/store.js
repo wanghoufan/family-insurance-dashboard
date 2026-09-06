@@ -95,7 +95,7 @@ FID.store = (function () {
     }
     renderUi();
     /* 版本信标：稳定后缀，QA/用户据此确认加载的是新版（此行随版本号更新） */
-    document.title = '家庭保单数据看板 · vA已加载';
+    document.title = '家庭保单数据看板 · vC已加载';
     // 诊断/自动化入口：?login=1 且未登录时自动发起 OAuth（回程 redirectTo 不带 query，不会循环）
     try {
       if (!isCloud() && new URLSearchParams(location.search).get('login') === '1') {
@@ -328,6 +328,8 @@ FID.store = (function () {
   /* ---------- 写入：费率 / 缴费趋势 ---------- */
   /* 险种行尚未建好时的单元格写入暂存：险种 insert 回来后自动补写，首编即入云 */
   var pendingCells = {};
+  /* CR-0907-03：在途 insert 去重——同名 insert 已在队列/在途时不再 enqueue，避免云端重名行 */
+  var inFlightTypes = {};
   function flushPendingCells(typeName) {
     var pend = pendingCells[typeName] || [];
     pendingCells[typeName] = [];
@@ -336,6 +338,9 @@ FID.store = (function () {
   function insertRateType(name) {
     if (!isCloud()) return;
     if (typeMeta[name]) return;
+    // 在途 5 分钟内视为有效（onDone/refreshOne 会清掉）；超期则允许重发，防止永久卡死
+    if (inFlightTypes[name] && Date.now() - inFlightTypes[name] < 5 * 60 * 1000) return;
+    inFlightTypes[name] = Date.now();
     var cid = FID.uuid();
     FID.outbox.enqueue({
       kind: 'rateType', op: 'insert', clientId: cid,
@@ -345,6 +350,7 @@ FID.store = (function () {
       onDone: function (res) {
         if (res && res.row) {
           typeMeta[name] = { serverId: res.row.id, revision: res.row.revision, clientId: res.row.client_id };
+          delete inFlightTypes[name];
           flushPendingCells(name);
         }
         else if (res && res.replayed) refreshOne('rateType', { client_id: cid }, null, name);
@@ -426,6 +432,7 @@ FID.store = (function () {
     }
     delete typeMeta[typeName];
     delete pendingCells[typeName];
+    delete inFlightTypes[typeName];
   }
 
   /* ---------- 写入结果处理（含冲突裁决） ---------- */
@@ -475,6 +482,7 @@ FID.store = (function () {
         if (typeof saveTodos === 'function') saveTodos();
       } else if (kind === 'rateType' && typeName) {
         typeMeta[typeName] = { serverId: row.id, revision: row.revision, clientId: row.client_id };
+        delete inFlightTypes[typeName];
         flushPendingCells(typeName);
       }
     }).catch(function (e) { console.warn('[FID] 重放回读失败：', e && e.message); });
