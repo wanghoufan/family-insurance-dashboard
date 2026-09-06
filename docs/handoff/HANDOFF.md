@@ -17,19 +17,33 @@
    另修 replayed 路径 `refreshOne` 传参 bug（此前传字符串导致回读查全表）。
 4. **B4/B6 草案**：`scratch/README草案-20260907.md`、`scratch/R3-Redirect申请草案-20260907.md`
    （均不进 Git，README 未动，共享项目未动）。
-5. **B5**：`docker compose config` 通过；`docker build` + 临时容器 `:3201` 实测 HTTP 200，
-   镜像/容器已清理。部署副本未建（`deploy.sh` 会起生产容器 + 占 3200，需用户一键授权）。
+5. **B5 部署完成**（用户授权“DOCKER部署/提交后部署新版”）：`e2c2e61` 已推送；
+   部署副本 `~/Developer/coding/docker/family-insurance-dashboard/`（clone@e2c2e61，
+   `.env.local` + `src/config.js` 已生成，均被忽略不进 Git）；
+   `family-insurance-dashboard:20260907a` 构建启动，`http://localhost:3200` 200，
+   `/config.js` 与 `/repository/*.js` 200（Dockerfile 补 COPY 生效），容器 healthy。
+   `DEPLOY_CONFIG_FILE=.deploy.family-insurance-dashboard.env` 已保存。
+   注意：`docker/deploy.sh` 在本机 `/bin/bash` 3.2 下跑不到构建——第 169 行
+   `log "部署提交：$COMMIT（…）"` 全角括号紧跟变量名，`set -u` 报
+   `COMMIT: unbound variable`（最小复现已验证）。本次绕过 deploy.sh，
+   按其 Compose 路径手工执行等效步骤；修 deploy.sh（加 `${}`）是 Docker 规范仓库的事，未动。
 6. **无头冒烟对照**：基线 HEAD 与本轮在无头 Chrome 下表现一致
    （空表、无信标——为无头环境异步启动未完成所致，非回归；昨日 QA 真机信标正常）。
    `node --check` 5/5 通过，`git diff --check` 通过，30 个事件 handler 全有定义。
 
 ### 2. 还剩什么（需用户/真机）
 
-1. **commit / push**：等明确指令。改动：HTML、store.js、PLAN、QA_CHECKLIST、PRODUCT_BACKLOG、本文件。
-2. **B7 L1–L5 BLOCKED**：Tailscale CLI 在本机起不来（需 Mac 端 App）、无第二设备、
+1. **commit / push**：等明确指令。改动：HANDOFF、PLAN、QA_CHECKLIST、BUGS（均为文档对齐，无代码改动）。
+2. **数据差异 8→6（用户决策：算了，不追查）**：用户称此前约 8 条、现云上 6 条。
+   代码核对：`loadAll` 云非空分支会用云行替换本机并写回，与描述吻合；
+   未做数据恢复性验证。已记 `BUGS.md` BUG-20260907-01（OPEN，用户接受暂缓），
+   根治（合并草稿）待排期。预防动作：登录/导入前先「加密备份」。
+3. **B7 L1–L5 BLOCKED**：Tailscale CLI 在本机起不来（需 Mac 端 App）、无第二设备、
    真人 Google 登录需用户操作。待 R-3 批复 + Tailscale 就绪后按 L1→L5 实测。
-3. **实机回归待补**：真实合同加解密、大文件上限、双设备险种删除一致性。
-4. 其余沿用 09-06 中午节（R-2 已交付，BACKLOG 两项已清）。
+   另：`localhost:8000` 预览服务当前未运行（`lsof`/`ps` 已确认），需 `cd src && python3 -m http.server 8000` 重启 + 硬刷新（Chrome 缓存旧页面，注意 `?v=` 信标）。
+4. **实机回归待补**：真实合同加解密、大文件上限、双设备险种删除一致性、BUG-20260907-01 回归。
+5. **README 生效修改仍待确认**：草案在 `scratch/README草案-20260907.md`，用户点头后再改 README.md。
+6. 其余沿用 09-06 中午节（R-2 已交付，BACKLOG 两项已清）。
 
 ---
 

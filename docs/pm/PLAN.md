@@ -11,9 +11,12 @@
 | B2 | store.js TEMP 注释清理，版本信标保留 | diff + 冒烟 | 已完成未提交 |
 | B3 | 险种可删除（含云端行）；费率格首次编辑即入云（不再需编两次） | 合成逻辑检查 + 浏览器实测 | 已实现未提交 |
 | B4 | README 只出草案不直接改（含云端同步说明） | scratch 草案给用户确认 | 草案完成 |
-| B5 | Docker 部署前校验通过；副本创建按规范执行 | `compose config` + 目录检查 | 校验通过，副本待建 |
+| B5 | Docker 部署前校验通过；副本创建按规范执行 | `compose config` + 目录检查 | 已部署（:3200 healthy，见 HANDOFF） |
 | B6 | R-3 Redirect 追加只出申请草案放 scratch，不直改共享项目 | 草案文件 | 草案完成 |
 | B7 | L1–L5 能测实测留记录，不能测标 BLOCKED（缺 Tailscale/第二设备/真人登录） | QA 记录 | 部分 BLOCKED |
+
+> 2026-09-07 用户决策：8→6 记录差异不再追查恢复，转 `docs/qa/BUGS.md` BUG-20260907-01
+> 跟踪（OPEN，用户接受暂缓）；README 生效修改仍待用户确认草案（B4）。
 
 文件边界：`src/family-insurance-dashboard.html`、`src/repository/store.js`、
 `docs/qa/QA_CHECKLIST.md`、`docs/review/PRODUCT_BACKLOG.md`、本文件、
