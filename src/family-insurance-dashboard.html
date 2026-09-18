@@ -3,23 +3,65 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark light">
 <title>家庭保单数据看板</title>
+<script>
+/* 主题提前生效（防闪白/闪黑）：familyTheme = dark | light | system（默认 system） */
+(function(){try{
+  var p=localStorage.getItem('familyTheme')||'system';
+  var sysDark=window.matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.setAttribute('data-theme',p==='system'?(sysDark?'dark':'light'):p);
+}catch(e){}})();
+</script>
 <style>
   :root{
     --bg:#0f1216; --panel:#171c23; --panel2:#1e252e; --border:#2a323c;
     --text:#e6ebf1; --muted:#8b97a6; --accent:#4ea1ff; --accent2:#34d399;
     --warn:#f59e0b; --danger:#ef4444; --ok:#34d399; --shadow:0 6px 22px rgba(0,0,0,.35);
+    color-scheme:dark;
+    --header-grad-a:#141a21; --header-grad-b:#0f1216;
+    --lock-bg:#13351f; --lock-text:#7ee2a8; --lock-border:#1f5e38;
+    --btn-hover-bg:#243040; --primary-text:#06203a;
+    --cell-edit-hover:#3a4654;
+    --tag-expired-bg:#3a1414; --tag-expired-text:#ff9a9a;
+    --tag-active-bg:#10331f; --tag-active-text:#7ee2a8;
+    --tag-soon-bg:#3a2a0e; --tag-soon-text:#ffd27a;
+    --tag-unknown-bg:#2a2f37; --tag-unknown-text:#aab4c0;
+    --tag-cat-bg:#16283d; --tag-cat-text:#8fc4ff;
+    --onboarding-text:#93c5fd; --onboarding-strong:#bfdbfe;
+    --chart-track:#222a33;
+    --banner-due-bg:#2a1414; --banner-due-border:#5a1f1f; --banner-due-text:#ff9a9a;
+    --banner-soon-bg:#241c0e; --banner-soon-border:#5a431a; --banner-soon-text:#ffd27a;
+  }
+  :root[data-theme="light"]{
+    --bg:#f3f5f9; --panel:#ffffff; --panel2:#eaeef4; --border:#d8dfe8;
+    --text:#1f2937; --muted:#64748b; --accent:#3b82f6; --accent2:#0e9f6e;
+    --warn:#d97706; --danger:#dc2626; --ok:#0e9f6e; --shadow:0 6px 22px rgba(15,23,42,.08);
+    color-scheme:light;
+    --header-grad-a:#ffffff; --header-grad-b:#f3f5f9;
+    --lock-bg:#e6f7ed; --lock-text:#15803d; --lock-border:#b5e3c8;
+    --btn-hover-bg:#e2e8f0; --primary-text:#ffffff;
+    --cell-edit-hover:#9aa8b8;
+    --tag-expired-bg:#fdeaea; --tag-expired-text:#c0392b;
+    --tag-active-bg:#e5f7ec; --tag-active-text:#15803d;
+    --tag-soon-bg:#fdf3e1; --tag-soon-text:#b45309;
+    --tag-unknown-bg:#e9edf3; --tag-unknown-text:#64748b;
+    --tag-cat-bg:#e3efff; --tag-cat-text:#2563eb;
+    --onboarding-text:#1e5fa8; --onboarding-strong:#14498a;
+    --chart-track:#e3e9f0;
+    --banner-due-bg:#fdecec; --banner-due-border:#f1c4c4; --banner-due-text:#c0392b;
+    --banner-soon-bg:#fdf4e2; --banner-soon-border:#efdcb0; --banner-soon-text:#b45309;
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,Roboto,sans-serif;font-size:14px;line-height:1.5;}
-  header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 24px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#141a21,#0f1216);position:sticky;top:0;z-index:20;}
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 24px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,var(--header-grad-a),var(--header-grad-b));position:sticky;top:0;z-index:20;}
   h1{font-size:19px;margin:0;font-weight:650;letter-spacing:.5px;}
   .sub{color:var(--muted);font-size:12.5px;margin-top:3px;}
-  .lock{display:inline-flex;align-items:center;gap:5px;background:#13351f;color:#7ee2a8;border:1px solid #1f5e38;padding:3px 9px;border-radius:999px;font-size:11.5px;margin-left:10px;vertical-align:middle;}
+  .lock{display:inline-flex;align-items:center;gap:5px;background:var(--lock-bg);color:var(--lock-text);border:1px solid var(--lock-border);padding:3px 9px;border-radius:999px;font-size:11.5px;margin-left:10px;vertical-align:middle;}
   .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
   button{font-family:inherit;cursor:pointer;border:1px solid var(--border);background:var(--panel2);color:var(--text);padding:8px 13px;border-radius:9px;font-size:13px;transition:.15s;}
-  button:hover{border-color:var(--accent);background:#243040;}
-  button.primary{background:var(--accent);border-color:var(--accent);color:#06203a;font-weight:600;}
+  button:hover{border-color:var(--accent);background:var(--btn-hover-bg);}
+  button.primary{background:var(--accent);border-color:var(--accent);color:var(--primary-text);font-weight:600;}
   button.primary:hover{filter:brightness(1.08);}
   .wrap{width:100%;padding:22px clamp(16px,2vw,36px) 60px;margin:0 auto;}
   .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:22px;}
@@ -47,15 +89,15 @@
   table{width:100%;border-collapse:collapse;font-size:13px;}
   th,td{padding:11px 10px;text-align:left;border-bottom:1px solid var(--border);}
   .cell-edit{cursor:text;}
-  .cell-edit:hover{outline:1px dashed #3a4654;outline-offset:-3px;}
+  .cell-edit:hover{outline:1px dashed var(--cell-edit-hover);outline-offset:-3px;}
   th{color:var(--muted);font-weight:600;font-size:12.5px;cursor:pointer;user-select:none;white-space:nowrap;}
   tbody tr:hover{background:var(--panel2);}
   .tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11.5px;font-weight:600;white-space:nowrap;}
-  .tag.expired{background:#3a1414;color:#ff9a9a;}
-  .tag.active{background:#10331f;color:#7ee2a8;}
-  .tag.soon{background:#3a2a0e;color:#ffd27a;}
-  .tag.unknown{background:#2a2f37;color:#aab4c0;}
-  .tag.cat{background:#16283d;color:#8fc4ff;}
+  .tag.expired{background:var(--tag-expired-bg);color:var(--tag-expired-text);}
+  .tag.active{background:var(--tag-active-bg);color:var(--tag-active-text);}
+  .tag.soon{background:var(--tag-soon-bg);color:var(--tag-soon-text);}
+  .tag.unknown{background:var(--tag-unknown-bg);color:var(--tag-unknown-text);}
+  .tag.cat{background:var(--tag-cat-bg);color:var(--tag-cat-text);}
   .mini{border:none;background:transparent;padding:4px 8px;font-size:12px;border-radius:6px;}
   .mini.open{color:var(--accent2);}
   .mini.up{color:var(--muted);}
@@ -72,8 +114,8 @@
   .form-full{grid-column:1 / -1;}
   .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;}
   .hint{color:var(--muted);font-size:12px;margin-top:8px;line-height:1.6;}
-  .onboarding{padding:12px 16px;border-radius:10px;background:rgba(78,161,255,0.08);border:1px solid rgba(78,161,255,0.22);color:#93c5fd;margin-bottom:18px;font-size:13.5px;line-height:1.6;}
-  .onboarding strong{color:#bfdbfe;}
+  .onboarding{padding:12px 16px;border-radius:10px;background:rgba(78,161,255,0.08);border:1px solid rgba(78,161,255,0.28);color:var(--onboarding-text);margin-bottom:18px;font-size:13.5px;line-height:1.6;}
+  .onboarding strong{color:var(--onboarding-strong);}
   .required{color:#f87171;margin-left:3px;}
   .highlight-row{animation:flash 2s ease;}
   @keyframes flash{0%,100%{background:transparent} 50%{background:rgba(78,161,255,0.16)}}
@@ -90,6 +132,7 @@
   </div>
   <div class="actions">
     <span id="cloudActions" style="display:inline-flex;gap:8px;flex-wrap:wrap"></span>
+    <button id="themeBtn" onclick="cycleTheme()" title="点击切换：深色 → 浅色 → 跟随系统">🌗 跟随系统</button>
     <button class="primary" onclick="openForm()">+ 添加保单</button>
     <button onclick="document.getElementById('importFile').click()">导入</button>
     <button onclick="exportData()">导出 JSON</button>
@@ -454,10 +497,10 @@ function donut(seg){
   const legend=seg.map(a=>`<span><i class="dot" style="background:${a.color}"></i>${a.label} · ${a.value}份</span>`).join('');
   return `<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
     <svg width="180" height="180" viewBox="0 0 180 180">
-      <circle cx="90" cy="90" r="62" fill="none" stroke="#222a33" stroke-width="26"/>
+      <circle cx="90" cy="90" r="62" fill="none" style="stroke:var(--chart-track)" stroke-width="26"/>
       ${paths}
-      <text x="90" y="84" text-anchor="middle" fill="#e6ebf1" font-size="22" font-weight="700">${seg.reduce((s,x)=>s+x.value,0)}</text>
-      <text x="90" y="104" text-anchor="middle" fill="#8b97a6" font-size="11">份保单</text>
+      <text x="90" y="84" text-anchor="middle" style="fill:var(--text)" font-size="22" font-weight="700">${seg.reduce((s,x)=>s+x.value,0)}</text>
+      <text x="90" y="104" text-anchor="middle" style="fill:var(--muted)" font-size="11">份保单</text>
     </svg>
     <div class="legend" style="flex-direction:column;gap:8px">${legend}</div></div>`;
 }
@@ -1188,8 +1231,8 @@ function renderRateChart(){
     if(pts.length){ paths+=`<path d="${d}" fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round"/>`; pts.forEach(pt=>{ dots+=`<circle cx="${pt[0].toFixed(1)}" cy="${pt[1].toFixed(1)}" r="3.6" fill="${c}"/>`; }); }
     leg+=`<span><i class="dot" style="background:${c}"></i>${escapeHtml(p)}</span>`;
   });
-  let grid=''; for(let g=0;g<=4;g++){ const val=maxV*g/4, gy=yf(val); grid+=`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W-padR}" y2="${gy.toFixed(1)}" stroke="#222a33" stroke-width="1"/><text x="${padL-6}" y="${(gy+3).toFixed(1)}" text-anchor="end" fill="#8b97a6" font-size="10">${Math.round(val)}</text>`; }
-  let xlab=years.map((yr,i)=>`<text x="${x(i).toFixed(1)}" y="${H-12}" text-anchor="middle" fill="#8b97a6" font-size="11">${yr}</text>`).join('');
+  let grid=''; for(let g=0;g<=4;g++){ const val=maxV*g/4, gy=yf(val); grid+=`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W-padR}" y2="${gy.toFixed(1)}" style="stroke:var(--chart-track)" stroke-width="1"/><text x="${padL-6}" y="${(gy+3).toFixed(1)}" text-anchor="end" style="fill:var(--muted)" font-size="10">${Math.round(val)}</text>`; }
+  let xlab=years.map((yr,i)=>`<text x="${x(i).toFixed(1)}" y="${H-12}" text-anchor="middle" style="fill:var(--muted)" font-size="11">${yr}</text>`).join('');
   el.innerHTML=`<svg width="100%" viewBox="0 0 ${W} ${H}" style="max-width:${W}px">${grid}${paths}${dots}${xlab}</svg><div class="legend" style="margin-top:6px">${leg}</div>`;
 }
 
@@ -1204,9 +1247,9 @@ function renderReminder(){
   const btn=notifyOn
     ? `<button onclick="disableNotify()">🔔 桌面提醒已开启（点此关闭）</button>`
     : `<button class="primary" onclick="enableNotify()">🔔 开启到期桌面提醒</button>`;
-  el.innerHTML=`<div style="border:1px solid ${due.length?'#5a1f1f':'#5a431a'};background:${due.length?'#2a1414':'#241c0e'};border-radius:12px;padding:14px 16px;margin-bottom:18px">
+  el.innerHTML=`<div style="border:1px solid var(${due.length?'--banner-due-border':'--banner-soon-border'});background:var(${due.length?'--banner-due-bg':'--banner-soon-bg'});border-radius:12px;padding:14px 16px;margin-bottom:18px">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-      <div style="font-weight:600;color:${due.length?'#ff9a9a':'#ffd27a'}">⚠ 续保提醒：${due.length} 份已到期（脱保风险）｜${soon.length} 份 30 天内到期</div>
+      <div style="font-weight:600;color:var(${due.length?'--banner-due-text':'--banner-soon-text'})">⚠ 续保提醒：${due.length} 份已到期（脱保风险）｜${soon.length} 份 30 天内到期</div>
       ${btn}
     </div>
     <ul style="margin:10px 0 0;padding-left:18px;color:var(--muted);font-size:13px">${list}</ul>
@@ -1224,11 +1267,31 @@ function enableNotify(){
 }
 function disableNotify(){ localStorage.removeItem('familyNotify'); renderReminder(); }
 
+/* ---------- 主题（深色 / 浅色 / 跟随系统） ---------- */
+const THEME_KEY='familyTheme';
+const THEME_META={dark:['🌙','深色'],light:['☀️','浅色'],system:['💻','跟随系统']};
+function currentThemePref(){ const p=localStorage.getItem(THEME_KEY); return THEME_META[p]?p:'system'; }
+function applyTheme(){
+  const pref=currentThemePref();
+  const sysDark=window.matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.setAttribute('data-theme',pref==='system'?(sysDark?'dark':'light'):pref);
+  const btn=document.getElementById('themeBtn');
+  if(btn){ const m=THEME_META[pref]; btn.textContent=m[0]+' '+m[1]; btn.title='当前：'+m[1]+'（点击切换 深色 → 浅色 → 跟随系统）'; }
+}
+function cycleTheme(){
+  const order=['dark','light','system'];
+  const next=order[(order.indexOf(currentThemePref())+1)%order.length];
+  localStorage.setItem(THEME_KEY,next); applyTheme();
+  toast('主题已切换：'+THEME_META[next][1]);
+}
+try{ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{ if(currentThemePref()==='system') applyTheme(); }); }catch(e){}
+
 /* ---------- 汇总刷新 ---------- */
 async function refreshAll(){ enrich(); renderKPIs(); renderRenewStat(); renderCharts(); initFilters(); renderTableHeader(); await renderTable(); renderReminder(); }
 
 /* ---------- 启动 ---------- */
 (async function(){
+  applyTheme();
   await openDB();
   if (window.FID && FID.store) {
     // 云端/本机模式判定（读登录态、注册 auth 监听），再按模式加载云端或本机数据
